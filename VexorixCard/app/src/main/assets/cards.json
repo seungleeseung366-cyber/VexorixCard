@@ -1,0 +1,14 @@
+[
+  { "id": "goblin_scout",  "name": "Goblin Scout",   "cost": 1, "attack": 1, "hp": 2, "effect": "none", "value": 0, "image": "" },
+  { "id": "squire",        "name": "Squire",         "cost": 1, "attack": 2, "hp": 1, "effect": "none", "value": 0, "image": "" },
+  { "id": "iron_guard",    "name": "Iron Guard",     "cost": 2, "attack": 1, "hp": 4, "effect": "none", "value": 0, "image": "" },
+  { "id": "shadow_fox",    "name": "Shadow Fox",     "cost": 2, "attack": 3, "hp": 2, "effect": "none", "value": 0, "image": "" },
+  { "id": "healer_monk",   "name": "Healer Monk",    "cost": 2, "attack": 1, "hp": 3, "effect": "heal", "value": 3, "image": "" },
+  { "id": "flame_knight",  "name": "Flame Knight",   "cost": 3, "attack": 4, "hp": 3, "effect": "dmg", "value": 1, "image": "" },
+  { "id": "scholar",       "name": "Arcane Scholar", "cost": 3, "attack": 2, "hp": 3, "effect": "draw", "value": 1, "image": "" },
+  { "id": "sky_raider",    "name": "Sky Raider",     "cost": 3, "attack": 3, "hp": 3, "effect": "none", "value": 0, "image": "" },
+  { "id": "stone_golem",   "name": "Stone Golem",    "cost": 4, "attack": 3, "hp": 6, "effect": "none", "value": 0, "image": "" },
+  { "id": "dragon_whelp",  "name": "Dragon Whelp",   "cost": 4, "attack": 5, "hp": 3, "effect": "none", "value": 0, "image": "" },
+  { "id": "storm_mage",    "name": "Storm Mage",     "cost": 5, "attack": 4, "hp": 4, "effect": "dmg", "value": 3, "image": "" },
+  { "id": "vexorix_titan", "name": "Vexorix Titan",  "cost": 7, "attack": 7, "hp": 7, "effect": "dmg", "value": 2, "image": "" }
+]
