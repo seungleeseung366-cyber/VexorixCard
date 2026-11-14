@@ -85,9 +85,19 @@ public class VexorixGame extends ApplicationAdapter {
 
     static class T { String s; float x, y, w; int px, align; boolean title; Color c; }
     static class Im { Texture t; float x, y, w, h; }
+
+    /** Partikel efek skill. kind: 0 titik, 1 garis, 2 cincin, 3 sinar, 4 kilat. */
+    static class P {
+        int kind;
+        float x, y, ox, oy, x2, y2, vx, vy, gy, sway, ph, ang, angv, rad, radv, r, rv, w, t, life, delay;
+        boolean polar;
+        Color c;
+    }
     Array<T> texts = new Array<>();
     Array<Im> imgs = new Array<>();
     Array<Runnable> over = new Array<>();
+    Array<P> parts = new Array<>();
+    HashMap<String, String> fxMap = new HashMap<>();
 
     Rectangle btnAi = new Rectangle(160, 760, 400, 90);
     Rectangle btnCreate = new Rectangle(160, 640, 400, 90);
@@ -113,6 +123,10 @@ public class VexorixGame extends ApplicationAdapter {
         }
         try {
             cards = Cards.load();
+            JsonValue fxRoot = new JsonReader().parse(Gdx.files.internal("cards.json"));
+            for (JsonValue fc = fxRoot.child; fc != null; fc = fc.next) {
+                fxMap.put(fc.getString("id", ""), fc.getString("fx", ""));
+            }
             if (cards.size == 0) error = "cards.json kosong";
             JsonValue c = new JsonReader().parse(Gdx.files.internal("config.json"));
             Room.base = c.getString("firebaseUrl", "").trim().replaceAll("/+$", "");
@@ -340,6 +354,7 @@ public class VexorixGame extends ApplicationAdapter {
 
     void update(float dt) {
         time += dt;
+        updateFx(dt);
         for (int i = 0; i < ex.length; i++) {
             ey[i] += es[i] * dt;
             ex[i] += MathUtils.sin(time * 0.6f + i) * 6f * dt;
@@ -357,7 +372,7 @@ public class VexorixGame extends ApplicationAdapter {
             if (!online) {
                 if (b.turn == 1) {
                     aiT += dt;
-                    if (aiT > 0.8f) { aiT = 0; b.apply(Ai.next(b, 1)); }
+                    if (aiT > 0.8f) { aiT = 0; doApply(Ai.next(b, 1)); }
                 }
             } else if (b.turn != me) {
                 pollT += dt;
@@ -459,6 +474,10 @@ public class VexorixGame extends ApplicationAdapter {
 
         drawInspect();
 
+        overlay(new Runnable() {
+            public void run() { drawFx(); }
+        });
+
         if (b.winner >= 0) {
             final String t = b.winner == 2 ? "SERI!" : (b.winner == me ? "MENANG!" : "KALAH");
             overlay(new Runnable() {
@@ -540,6 +559,312 @@ public class VexorixGame extends ApplicationAdapter {
         if (!tag.isEmpty()) labelC(tag, x + CW / 2, y + 28, 13, effTagColor(d), false);
     }
 
+
+    // ---------- efek skill (animasi) ----------
+    float rnd(float a, float b) { return MathUtils.random(a, b); }
+
+    float rowOf(int side) { return side == me ? ROW_MY : ROW_EN; }
+
+    Rectangle heroRect(int side) { return side == me ? myHero : enemyHero; }
+
+    String styleOf(CardDef d) {
+        String s = fxMap.get(d.id);
+        if (s != null && !s.isEmpty()) return s;
+        if (d.effect.equals("dmg")) return "flame";
+        if (d.effect.equals("heal")) return "holy";
+        if (d.effect.equals("draw")) return "arcane";
+        return "spark";
+    }
+
+    Color[] palette(String s) {
+        switch (s) {
+            case "flame":   return new Color[]{ Color.valueOf("ff9a1f"), Color.valueOf("ff4d1a") };
+            case "holy":    return new Color[]{ Color.valueOf("ffe08a"), Color.valueOf("fff3c4") };
+            case "blood":   return new Color[]{ Color.valueOf("e03131"), Color.valueOf("ff8787") };
+            case "leaf":    return new Color[]{ Color.valueOf("51cf66"), Color.valueOf("b2f2bb") };
+            case "arcane":  return new Color[]{ Color.valueOf("b197fc"), Color.valueOf("74c0fc") };
+            case "iron":    return new Color[]{ Color.valueOf("ced4da"), Color.valueOf("fa5252") };
+            case "stone":   return new Color[]{ Color.valueOf("c9a66b"), Color.valueOf("8d7b68") };
+            case "void":    return new Color[]{ Color.valueOf("9d4edd"), Color.valueOf("e599f7") };
+            case "shadow":  return new Color[]{ Color.valueOf("845ef7"), Color.valueOf("d0bfff") };
+            case "feather": return new Color[]{ Color.valueOf("4dabf7"), Color.valueOf("e7f5ff") };
+            case "guard":   return new Color[]{ Color.valueOf("74c0fc"), Color.WHITE };
+            case "dagger":  return new Color[]{ Color.valueOf("94d82d"), Color.valueOf("d8f5a2") };
+            default:        return new Color[]{ Color.valueOf("ffd43b"), Color.WHITE };
+        }
+    }
+
+    P mk(int kind, float x, float y, float life, Color c) {
+        P q = new P();
+        q.kind = kind; q.x = x; q.y = y; q.ox = x; q.oy = y;
+        q.life = life; q.c = c; q.w = 3; q.r = 5; q.ph = rnd(0, 6.28f);
+        parts.add(q);
+        return q;
+    }
+
+    P flash(float x, float y, float r, Color c) {
+        P q = mk(4, x, y, 0.35f, c);
+        q.r = r; q.rv = r * 1.6f;
+        return q;
+    }
+
+    P ring(float x, float y, float r0, float r1, Color c, float life, float w, float delay) {
+        P q = mk(2, x, y, life, c);
+        q.r = r0; q.rv = (r1 - r0) / life; q.w = w; q.delay = delay;
+        return q;
+    }
+
+    P dot(float x, float y, float vx, float vy, float gy, float size, float life, Color c) {
+        P q = mk(0, x, y, life, c);
+        q.vx = vx; q.vy = vy; q.gy = gy; q.r = size;
+        return q;
+    }
+
+    P streak(float x, float y, float ang, float speed, float len, float w, float life, Color c) {
+        P q = mk(1, x, y, life, c);
+        q.vx = MathUtils.cos(ang) * speed; q.vy = MathUtils.sin(ang) * speed; q.r = len; q.w = w;
+        return q;
+    }
+
+    P orbit(float cx, float cy, float rad, float radv, float ang, float angv, float size, float life, Color c) {
+        P q = mk(0, cx, cy, life, c);
+        q.polar = true; q.rad = rad; q.radv = radv; q.ang = ang; q.angv = angv; q.r = size;
+        q.x = cx + MathUtils.cos(ang) * rad;
+        q.y = cy + MathUtils.sin(ang) * rad;
+        return q;
+    }
+
+    P beam(float x1, float y1, float x2, float y2, float w, float life, Color c) {
+        P q = mk(3, x1, y1, life, c);
+        q.x2 = x2; q.y2 = y2; q.w = w;
+        return q;
+    }
+
+    /** Efek skill saat kartu dimainkan. sc = skala (1 = penuh). */
+    void spawnFx(String style, float cx, float cy, float sc) {
+        Color[] pc = palette(style);
+        Color c1 = pc[0], c2 = pc[1];
+        flash(cx, cy, 60 * sc, c1);
+        ring(cx, cy, 10, 200 * sc, c1, 0.5f, 5, 0);
+        int n;
+        switch (style) {
+            case "flame":
+                n = (int) (28 * sc);
+                for (int i = 0; i < n; i++)
+                    dot(cx + rnd(-40, 40) * sc, cy + rnd(-30, 30) * sc, rnd(-70, 70), rnd(90, 300), -140, rnd(5, 10), rnd(0.6f, 1.1f), i % 2 == 0 ? c1 : c2);
+                ring(cx, cy, 10, 150 * sc, c2, 0.5f, 4, 0.12f);
+                break;
+            case "holy":
+                n = (int) (24 * sc);
+                for (int i = 0; i < n; i++)
+                    dot(cx + rnd(-60, 60) * sc, cy + rnd(-40, 40) * sc, rnd(-20, 20), rnd(40, 120), 0, rnd(3, 6), rnd(0.8f, 1.3f), i % 2 == 0 ? c1 : c2).sway = rnd(20, 50);
+                n = (int) (8 * sc);
+                for (int i = 0; i < n; i++) streak(cx, cy, i * MathUtils.PI2 / n, 260, 40, 3, 0.5f, c2);
+                ring(cx, cy, 10, 260 * sc, c2, 0.7f, 3, 0.15f);
+                break;
+            case "blood":
+                n = (int) (14 * sc);
+                for (int i = 0; i < n; i++) streak(cx, cy, rnd(0, MathUtils.PI2), rnd(300, 520), rnd(30, 60), 4, 0.45f, i % 2 == 0 ? c1 : c2);
+                n = (int) (14 * sc);
+                for (int i = 0; i < n; i++) dot(cx + rnd(-30, 30), cy + rnd(-10, 30), rnd(-90, 90), rnd(40, 160), -420, rnd(4, 8), rnd(0.7f, 1.0f), c1);
+                break;
+            case "leaf":
+                n = (int) (24 * sc);
+                for (int i = 0; i < n; i++) orbit(cx, cy, 8, rnd(90, 170), rnd(0, MathUtils.PI2), rnd(4, 7), rnd(3, 6), rnd(0.6f, 1.0f), i % 2 == 0 ? c1 : c2);
+                break;
+            case "arcane":
+                ring(cx, cy, 10, 240 * sc, c2, 0.6f, 4, 0.1f);
+                ring(cx, cy, 10, 300 * sc, c1, 0.8f, 3, 0.25f);
+                n = (int) (12 * sc);
+                for (int i = 0; i < n; i++) orbit(cx, cy, rnd(50, 90) * sc, 0, i * MathUtils.PI2 / n, rnd(4, 6) * (i % 2 == 0 ? 1 : -1), 5, 1.0f, i % 2 == 0 ? c1 : c2);
+                break;
+            case "iron":
+                ring(cx, cy, 10, 260 * sc, c1, 0.45f, 9, 0);
+                n = (int) (12 * sc);
+                for (int i = 0; i < n; i++) streak(cx, cy, (i % 2 == 0 ? 0f : MathUtils.PI) + rnd(-0.25f, 0.25f), rnd(300, 520), rnd(30, 60), 4, 0.4f, c1);
+                n = (int) (14 * sc);
+                for (int i = 0; i < n; i++) dot(cx, cy, rnd(-200, 200), rnd(100, 300), -900, rnd(3, 5), rnd(0.5f, 0.8f), c2);
+                break;
+            case "stone":
+                n = (int) (16 * sc);
+                for (int i = 0; i < n; i++) dot(cx + rnd(-55, 55), cy + rnd(50, 100), rnd(-30, 30), rnd(-60, -10), -700, rnd(6, 11), rnd(0.7f, 1.0f), i % 2 == 0 ? c1 : c2);
+                ring(cx, cy - 30, 10, 230 * sc, c2, 0.5f, 8, 0.05f);
+                break;
+            case "void":
+                n = (int) (26 * sc);
+                for (int i = 0; i < n; i++) {
+                    float r0 = rnd(90, 130) * sc;
+                    orbit(cx, cy, r0, -r0 / 0.65f, rnd(0, MathUtils.PI2), rnd(5, 8), rnd(3, 6), 0.65f, i % 2 == 0 ? c1 : c2);
+                }
+                flash(cx, cy, 90 * sc, c2).delay = 0.6f;
+                ring(cx, cy, 10, 260 * sc, c1, 0.5f, 5, 0.6f);
+                break;
+            case "shadow":
+                n = (int) (20 * sc);
+                for (int i = 0; i < n; i++) orbit(cx, cy, 6, rnd(100, 190), rnd(0, MathUtils.PI2), rnd(2.5f, 4.5f) * (i % 2 == 0 ? 1 : -1), rnd(4, 8), rnd(0.8f, 1.2f), i % 2 == 0 ? c1 : c2);
+                break;
+            case "feather":
+                n = (int) (28 * sc);
+                for (int i = 0; i < n; i++)
+                    dot(cx + rnd(-60, 60) * sc, cy + rnd(-50, 20) * sc, 0, rnd(80, 200), 0, rnd(3, 6), rnd(0.9f, 1.4f), i % 2 == 0 ? c1 : c2).sway = rnd(40, 90);
+                n = (int) (6 * sc);
+                for (int i = 0; i < n; i++) streak(cx, cy, 1.57f + rnd(-0.6f, 0.6f), rnd(260, 420), rnd(40, 80), 3, 0.5f, c2);
+                break;
+            case "guard":
+                ring(cx, cy, 10, 200 * sc, c2, 0.55f, 7, 0.08f);
+                n = (int) (10 * sc);
+                for (int i = 0; i < n; i++) streak(cx, cy, i * MathUtils.PI2 / n, 300, 26, 5, 0.4f, c1);
+                break;
+            case "dagger":
+                beam(cx - 70 * sc, cy + 70 * sc, cx + 70 * sc, cy - 70 * sc, 8, 0.35f, c1);
+                beam(cx + 70 * sc, cy + 70 * sc, cx - 70 * sc, cy - 70 * sc, 8, 0.35f, c2);
+                n = (int) (12 * sc);
+                for (int i = 0; i < n; i++) dot(cx, cy, rnd(-220, 220), rnd(-220, 220), 0, rnd(3, 5), rnd(0.3f, 0.5f), c1);
+                break;
+            default:
+                n = (int) (14 * sc);
+                for (int i = 0; i < n; i++) {
+                    float a = rnd(0, MathUtils.PI2), sp = rnd(120, 260);
+                    dot(cx, cy, MathUtils.cos(a) * sp, MathUtils.sin(a) * sp, 0, rnd(3, 6), rnd(0.4f, 0.7f), i % 2 == 0 ? c1 : c2);
+                }
+        }
+    }
+
+    /** Efek serangan: sinar dari penyerang ke target, lalu ledakan di target. */
+    void spawnAttack(String style, float sx, float sy, float tx, float ty) {
+        Color[] pc = palette(style);
+        beam(sx, sy, tx, ty, 10, 0.32f, pc[0]);
+        beam(sx, sy, tx, ty, 4, 0.32f, pc[1]);
+        flash(sx, sy, 40, pc[0]);
+        int first = parts.size;
+        spawnFx(style, tx, ty, 0.55f);
+        for (int i = first; i < parts.size; i++) parts.get(i).delay += 0.14f;
+    }
+
+    /** Menjalankan aksi di Battle sekaligus memunculkan efek skill-nya. */
+    boolean doApply(String a) {
+        int actor = b.turn;
+        String[] p = a.split(":");
+        String style = null;
+        CardDef pd = null;
+        float sx = 0, sy = 0, tx = 0, ty = 0;
+        boolean atk = false;
+        try {
+            if (p[0].equals("P")) {
+                pd = b.s[actor].hand.get(Integer.parseInt(p[1]));
+                style = styleOf(pd);
+            } else if (p[0].equals("A")) {
+                int ai = Integer.parseInt(p[1]);
+                int tg = Integer.parseInt(p[2]);
+                Battle.Unit u = b.s[actor].board.get(ai);
+                style = styleOf(u.def);
+                sx = slotX(ai) + CW / 2;
+                sy = rowOf(actor) + CH / 2;
+                if (tg < 0) {
+                    Rectangle hr = heroRect(1 - actor);
+                    tx = hr.x + hr.width / 2;
+                    ty = hr.y + hr.height / 2;
+                } else {
+                    tx = slotX(tg) + CW / 2;
+                    ty = rowOf(1 - actor) + CH / 2;
+                }
+                atk = true;
+            }
+        } catch (Exception e) {
+            style = null;
+        }
+        boolean ok = b.apply(a);
+        if (ok && style != null) {
+            if (atk) {
+                spawnAttack(style, sx, sy, tx, ty);
+            } else if (pd != null) {
+                int idx = b.s[actor].board.size - 1;
+                if (idx >= 0) spawnFx(style, slotX(idx) + CW / 2, rowOf(actor) + CH / 2, 1f);
+                int first = parts.size;
+                if (pd.effect.equals("dmg")) {
+                    Rectangle hr = heroRect(1 - actor);
+                    spawnFx(style, hr.x + hr.width / 2, hr.y + hr.height / 2, 0.5f);
+                } else if (pd.effect.equals("heal")) {
+                    Rectangle hr = heroRect(actor);
+                    spawnFx(style, hr.x + hr.width / 2, hr.y + hr.height / 2, 0.5f);
+                }
+                for (int i = first; i < parts.size; i++) parts.get(i).delay += 0.3f;
+            }
+        }
+        return ok;
+    }
+
+    void updateFx(float dt) {
+        for (int i = parts.size - 1; i >= 0; i--) {
+            P q = parts.get(i);
+            if (q.delay > 0) { q.delay -= dt; continue; }
+            q.t += dt;
+            if (q.t >= q.life) { parts.removeIndex(i); continue; }
+            if (q.polar) {
+                q.ang += q.angv * dt;
+                q.rad = Math.max(0f, q.rad + q.radv * dt);
+                q.x = q.ox + MathUtils.cos(q.ang) * q.rad;
+                q.y = q.oy + MathUtils.sin(q.ang) * q.rad;
+            } else {
+                q.vy += q.gy * dt;
+                q.x += q.vx * dt + (q.sway != 0 ? MathUtils.sin(q.t * 7f + q.ph) * q.sway * dt : 0f);
+                q.y += q.vy * dt;
+            }
+            q.r += q.rv * dt;
+        }
+    }
+
+    void drawFx() {
+        if (parts.size == 0) return;
+        sr.flush();
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE); // cahaya menyala (additive)
+        for (int i = 0; i < parts.size; i++) {
+            P q = parts.get(i);
+            if (q.delay > 0) continue;
+            float k = MathUtils.clamp(q.t / q.life, 0f, 1f);
+            float a = 1f - k;
+            switch (q.kind) {
+                case 0:
+                    sr.setColor(q.c.r, q.c.g, q.c.b, a);
+                    sr.circle(q.x, q.y, Math.max(0.8f, q.r * (1f - 0.5f * k)));
+                    break;
+                case 1: {
+                    float ang = MathUtils.atan2(q.vy, q.vx);
+                    float len = q.r * a;
+                    sr.setColor(q.c.r, q.c.g, q.c.b, a);
+                    sr.rectLine(q.x, q.y, q.x - MathUtils.cos(ang) * len, q.y - MathUtils.sin(ang) * len, q.w);
+                    break;
+                }
+                case 2: {
+                    sr.setColor(q.c.r, q.c.g, q.c.b, a * 0.9f);
+                    int seg = 28;
+                    float lx = q.x + q.r, ly = q.y;
+                    for (int s = 1; s <= seg; s++) {
+                        float an = s * MathUtils.PI2 / seg;
+                        float nx = q.x + MathUtils.cos(an) * q.r, ny = q.y + MathUtils.sin(an) * q.r;
+                        sr.rectLine(lx, ly, nx, ny, q.w * (0.4f + 0.6f * a));
+                        lx = nx;
+                        ly = ny;
+                    }
+                    break;
+                }
+                case 3: {
+                    float head = MathUtils.clamp(q.t / (q.life * 0.45f), 0f, 1f);
+                    float hx = q.x + (q.x2 - q.x) * head, hy = q.y + (q.y2 - q.y) * head;
+                    sr.setColor(q.c.r, q.c.g, q.c.b, a);
+                    sr.rectLine(q.x, q.y, hx, hy, q.w * (1f - 0.5f * k));
+                    sr.circle(hx, hy, q.w * 1.4f);
+                    break;
+                }
+                default:
+                    sr.setColor(q.c.r, q.c.g, q.c.b, a * 0.5f);
+                    sr.circle(q.x, q.y, q.r);
+            }
+        }
+        sr.flush();
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
     // ---------- input ----------
     void backToMenu() {
         mode = Mode.MENU;
@@ -548,6 +873,7 @@ public class VexorixGame extends ApplicationAdapter {
         selected = -1;
         selHand = -1;
         insp = null;
+        parts.clear();
     }
 
     void inspect(CardDef d, int atk, int hp, String note) {
@@ -623,11 +949,12 @@ public class VexorixGame extends ApplicationAdapter {
         b = new Battle(cards, seed);
         applied = 0; selected = -1; selHand = -1; insp = null; pollT = 0; aiT = 0;
         polling = false; lobbyBusy = false;
+        parts.clear();
         mode = Mode.GAME;
     }
 
     void act(String a) {
-        if (!b.apply(a)) { toast("Aksi tidak valid"); return; }
+        if (!doApply(a)) { toast("Aksi tidak valid"); return; }
         selHand = -1;
         if (online) send(applied, a, 0);
         applied++;
@@ -651,7 +978,7 @@ public class VexorixGame extends ApplicationAdapter {
                 if (!ok || mode != Mode.GAME || !online || !code.equals(roomCode)) return;
                 String a;
                 while (b.winner < 0 && b.turn != me && (a = Room.actionAt(body, applied)) != null) {
-                    b.apply(a);
+                    doApply(a);
                     applied++;
                 }
             }
