@@ -1,0 +1,23 @@
+[
+  {
+    "members": [
+      "dokja",
+      "renji",
+      "fabio"
+    ],
+    "lines": [
+      {
+        "id": "dokja",
+        "text": "Seperti nostalgia ya..."
+      },
+      {
+        "id": "renji",
+        "text": "Iya. Rasanya seperti dulu lagi."
+      },
+      {
+        "id": "fabio",
+        "text": "Kita bertiga lagi. Hipotesisku: kita memang cocok."
+      }
+    ]
+  }
+]
