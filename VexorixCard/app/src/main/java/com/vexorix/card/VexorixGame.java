@@ -83,8 +83,8 @@ public class VexorixGame extends ApplicationAdapter {
 
     float[] ex = new float[30], ey = new float[30], es = new float[30], ez = new float[30];
 
-    static class T { String s; float x, y, w; int px, align; boolean title; Color c; }
-    static class Im { Texture t; float x, y, w, h; }
+    static class T { String s; float x, y, w; int px, align, layer; boolean title; Color c; }
+    static class Im { Texture t; float x, y, w, h; float a = 1f; }
 
     /** Partikel efek skill. kind: 0 titik, 1 garis, 2 cincin, 3 sinar, 4 kilat. */
     static class P {
@@ -98,6 +98,15 @@ public class VexorixGame extends ApplicationAdapter {
     Array<Runnable> over = new Array<>();
     Array<P> parts = new Array<>();
     HashMap<String, String> fxMap = new HashMap<>();
+
+    /** Dialog chibi: satu baris bicara. */
+    static class Talk { String name, text; Texture tex; boolean mine; float t, life; }
+    Array<Talk> talks = new Array<>();
+    HashMap<String, String> chibiMap = new HashMap<>(), sayMap = new HashMap<>(), replyMap = new HashMap<>();
+    HashMap<String, HashMap<String, String>> repliesMap = new HashMap<>();
+    Array<Im> imgs2 = new Array<>();
+    Array<Runnable> over2 = new Array<>();
+    int curLayer = 0;
 
     Rectangle btnAi = new Rectangle(160, 760, 400, 90);
     Rectangle btnCreate = new Rectangle(160, 640, 400, 90);
@@ -125,7 +134,17 @@ public class VexorixGame extends ApplicationAdapter {
             cards = Cards.load();
             JsonValue fxRoot = new JsonReader().parse(Gdx.files.internal("cards.json"));
             for (JsonValue fc = fxRoot.child; fc != null; fc = fc.next) {
-                fxMap.put(fc.getString("id", ""), fc.getString("fx", ""));
+                String cid = fc.getString("id", "");
+                fxMap.put(cid, fc.getString("fx", ""));
+                chibiMap.put(cid, fc.getString("chibi", ""));
+                sayMap.put(cid, fc.getString("say", ""));
+                replyMap.put(cid, fc.getString("reply", ""));
+                JsonValue rp = fc.get("replies");
+                if (rp != null) {
+                    HashMap<String, String> rm = new HashMap<>();
+                    for (JsonValue rc = rp.child; rc != null; rc = rc.next) rm.put(rc.name, rc.asString());
+                    repliesMap.put(cid, rm);
+                }
             }
             if (cards.size == 0) error = "cards.json kosong";
             JsonValue c = new JsonReader().parse(Gdx.files.internal("config.json"));
@@ -180,7 +199,7 @@ public class VexorixGame extends ApplicationAdapter {
 
     void label(String s, float x, float y, float w, int px, Color c, boolean title, int align) {
         T t = new T();
-        t.s = s; t.x = x; t.y = y; t.w = w; t.px = px; t.c = c; t.title = title; t.align = align;
+        t.s = s; t.x = x; t.y = y; t.w = w; t.px = px; t.c = c; t.title = title; t.align = align; t.layer = curLayer;
         texts.add(t);
     }
 
@@ -316,6 +335,8 @@ public class VexorixGame extends ApplicationAdapter {
         texts.clear();
         imgs.clear();
         over.clear();
+        imgs2.clear();
+        over2.clear();
 
         sr.begin(ShapeRenderer.ShapeType.Filled);
         drawBackground();
@@ -327,6 +348,7 @@ public class VexorixGame extends ApplicationAdapter {
             box(60, 1138, 600, 40, 2, GOLD_DK, Color.valueOf("2a2140"), Color.valueOf("120d22"));
             labelC(msg, 360, 1158, 22, Color.YELLOW, false);
         }
+        if (mode == Mode.GAME && error == null && talks.size > 0) buildTalk();
         sr.end();
 
         batch.begin();
@@ -343,18 +365,47 @@ public class VexorixGame extends ApplicationAdapter {
         }
 
         batch.begin();
+        drawTexts(0);
+        batch.end();
+
+        if (imgs2.size > 0) { // potret chibi
+            batch.begin();
+            for (int i = 0; i < imgs2.size; i++) {
+                Im im = imgs2.get(i);
+                batch.setColor(1f, 1f, 1f, im.a);
+                batch.draw(im.t, im.x, im.y, im.w, im.h);
+            }
+            batch.setColor(Color.WHITE);
+            batch.end();
+        }
+        if (over2.size > 0) { // gelembung dialog
+            sr.begin(ShapeRenderer.ShapeType.Filled);
+            for (int i = 0; i < over2.size; i++) over2.get(i).run();
+            sr.end();
+        }
+        batch.begin();
+        drawTexts(1);
+        batch.end();
+    }
+
+    void drawTexts(int layer) {
         for (int i = 0; i < texts.size; i++) {
             T t = texts.get(i);
+            if (t.layer != layer) continue;
             BitmapFont f = font(t.title, t.px);
             gl.setText(f, t.s, t.c, t.w, t.align, true);
             f.draw(batch, gl, t.x, t.y);
         }
-        batch.end();
     }
 
     void update(float dt) {
         time += dt;
         updateFx(dt);
+        if (talks.size > 0) {
+            Talk tk = talks.first();
+            tk.t += dt;
+            if (tk.t >= tk.life) talks.removeIndex(0);
+        }
         for (int i = 0; i < ex.length; i++) {
             ey[i] += es[i] * dt;
             ex[i] += MathUtils.sin(time * 0.6f + i) * 6f * dt;
@@ -371,7 +422,7 @@ public class VexorixGame extends ApplicationAdapter {
         } else if (mode == Mode.GAME && b != null && b.winner < 0) {
             if (!online) {
                 if (b.turn == 1) {
-                    aiT += dt;
+                    if (talks.size == 0) aiT += dt;
                     if (aiT > 0.8f) { aiT = 0; doApply(Ai.next(b, 1)); }
                 }
             } else if (b.turn != me) {
@@ -789,6 +840,7 @@ public class VexorixGame extends ApplicationAdapter {
                     spawnFx(style, hr.x + hr.width / 2, hr.y + hr.height / 2, 0.5f);
                 }
                 for (int i = first; i < parts.size; i++) parts.get(i).delay += 0.3f;
+                triggerTalk(pd, actor);
             }
         }
         return ok;
@@ -865,6 +917,108 @@ public class VexorixGame extends ApplicationAdapter {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
     }
 
+
+    // ---------- dialog chibi ----------
+    Texture loadTex(String file) {
+        String key = "tex:" + file;
+        if (art.containsKey(key)) return art.get(key);
+        Texture t = null;
+        try {
+            FileHandle f = Gdx.files.internal(file);
+            if (f.exists()) {
+                Pixmap src = new Pixmap(f);
+                t = new Texture(src);
+                src.dispose();
+                t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } catch (Exception e) { }
+        art.put(key, t);
+        return t;
+    }
+
+    void say(CardDef d, boolean mine, String text) {
+        String f = chibiMap.get(d.id);
+        if (f == null || f.isEmpty() || text == null || text.isEmpty()) return;
+        Texture tx = loadTex(f);
+        if (tx == null) return;
+        Talk k = new Talk();
+        k.name = d.name; k.tex = tx; k.text = text; k.mine = mine;
+        k.life = 1.4f + text.length() * 0.05f;
+        talks.add(k);
+    }
+
+    /** Kartu dimainkan -> chibi-nya bicara, lalu chibi kartu lawan di papan membalas. */
+    void triggerTalk(CardDef pd, int actor) {
+        if (talks.size > 3) return;
+        String f = chibiMap.get(pd.id);
+        if (f == null || f.isEmpty()) return;
+        say(pd, actor == me, sayMap.get(pd.id));
+        Battle.Side opp = b.s[1 - actor];
+        for (int i = opp.board.size - 1; i >= 0; i--) {
+            CardDef rd = opp.board.get(i).def;
+            String rf = chibiMap.get(rd.id);
+            if (rf == null || rf.isEmpty()) continue;
+            String text = null;
+            HashMap<String, String> m = repliesMap.get(rd.id);
+            if (m != null) text = m.get(pd.id);
+            if (text == null || text.isEmpty()) text = replyMap.get(rd.id);
+            say(rd, (1 - actor) == me, text);
+            break;
+        }
+    }
+
+    void rrect(float x, float y, float w, float h, float r) {
+        sr.rect(x + r, y, w - 2 * r, h);
+        sr.rect(x, y + r, w, h - 2 * r);
+        sr.circle(x + r, y + r, r);
+        sr.circle(x + w - r, y + r, r);
+        sr.circle(x + r, y + h - r, r);
+        sr.circle(x + w - r, y + h - r, r);
+    }
+
+    void buildTalk() {
+        final Talk k = talks.first();
+        float in = MathUtils.clamp(k.t / 0.25f, 0f, 1f);
+        float out = MathUtils.clamp((k.life - k.t) / 0.25f, 0f, 1f);
+        final float alpha = Math.min(in, out);
+        float scale = Math.min(380f / k.tex.getHeight(), 260f / k.tex.getWidth());
+        float pw = k.tex.getWidth() * scale, ph = k.tex.getHeight() * scale;
+        float slide = (1f - in) * 300f;
+        float py = k.mine ? 330f : 800f;
+        float px = k.mine ? 10f - slide : W - pw - 10f + slide;
+        final float bh = 150f;
+        final float bx = k.mine ? 10f + pw + 24f : 14f;
+        final float bw = k.mine ? W - bx - 14f : W - pw - 48f;
+        final float by = py + ph / 2f - bh / 2f;
+        final boolean mine = k.mine;
+
+        Im im = new Im();
+        im.t = k.tex; im.x = px; im.y = py; im.w = pw; im.h = ph; im.a = alpha;
+        imgs2.add(im);
+
+        over2.add(new Runnable() {
+            public void run() {
+                Color gold = new Color(GOLD.r, GOLD.g, GOLD.b, alpha);
+                Color fill = new Color(0.09f, 0.07f, 0.18f, 0.96f * alpha);
+                float ty = by + bh * 0.5f;
+                sr.setColor(gold);
+                rrect(bx - 3, by - 3, bw + 6, bh + 6, 19);
+                if (mine) sr.triangle(bx - 28, ty, bx + 4, ty + 20, bx + 4, ty - 20);
+                else sr.triangle(bx + bw + 28, ty, bx + bw - 4, ty + 20, bx + bw - 4, ty - 20);
+                sr.setColor(fill);
+                rrect(bx, by, bw, bh, 16);
+                if (mine) sr.triangle(bx - 22, ty, bx + 6, ty + 15, bx + 6, ty - 15);
+                else sr.triangle(bx + bw + 22, ty, bx + bw - 6, ty + 15, bx + bw - 6, ty - 15);
+            }
+        });
+
+        int shown = Math.min(k.text.length(), (int) (k.t * 45f));
+        curLayer = 1;
+        label(k.name, bx + 20, by + bh - 14, bw - 40, 22, new Color(GOLD.r, GOLD.g, GOLD.b, alpha), true, Align.left);
+        label(k.text.substring(0, shown), bx + 20, by + bh - 48, bw - 40, 25, new Color(0.96f, 0.94f, 0.9f, alpha), false, Align.left);
+        curLayer = 0;
+    }
+
     // ---------- input ----------
     void backToMenu() {
         mode = Mode.MENU;
@@ -874,6 +1028,7 @@ public class VexorixGame extends ApplicationAdapter {
         selHand = -1;
         insp = null;
         parts.clear();
+        talks.clear();
     }
 
     void inspect(CardDef d, int atk, int hp, String note) {
@@ -950,6 +1105,7 @@ public class VexorixGame extends ApplicationAdapter {
         applied = 0; selected = -1; selHand = -1; insp = null; pollT = 0; aiT = 0;
         polling = false; lobbyBusy = false;
         parts.clear();
+        talks.clear();
         mode = Mode.GAME;
     }
 
