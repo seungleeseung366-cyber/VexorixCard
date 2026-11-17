@@ -14,6 +14,15 @@ public class Ai {
         }
         if (best >= 0) return "P:" + best;
 
+        // skill & ultimate dengan sisa mana
+        for (int i = 0; i < a.board.size; i++) {
+            Battle.Unit u = a.board.get(i);
+            if (!u.canAttack) continue;
+            CardDef d = u.def;
+            if (!u.ultUsed && d.ult.length > 0 && d.ultCost <= a.mana && (o.hp <= 14 || a.mana >= 8)) return "U:" + i;
+            if (u.skillCd == 0 && d.skill.length > 0 && d.skillCost <= a.mana) return "S:" + i;
+        }
+
         for (int i = 0; i < a.board.size; i++) {
             Battle.Unit u = a.board.get(i);
             if (!u.canAttack) continue;

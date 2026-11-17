@@ -53,7 +53,7 @@ public class VexorixGame extends ApplicationAdapter {
     static final Color EMBER = new Color(0.9f, 0.72f, 0.35f, 0.3f);
     static final Color DIM = new Color(0f, 0f, 0f, 0.72f);
 
-    enum Mode { MENU, LOBBY, GAME, PROFILE, PSETUP, PLOBBY, PGAME }
+    enum Mode { MENU, LOBBY, GAME, PROFILE, PSETUP, PLOBBY, PGAME, DECK }
     Mode mode = Mode.MENU;
 
     SpriteBatch batch;
@@ -138,11 +138,11 @@ public class VexorixGame extends ApplicationAdapter {
         "Itu dasar-dasarnya. Tips: pakai semua manamu tiap giliran, serang saat kartu siap, dan jaga HP-mu. Selamat bermain!"
     };
 
-    Rectangle btnAi = new Rectangle(160, 780, 400, 78);
-    Rectangle btnCreate = new Rectangle(160, 690, 400, 78);
-    Rectangle btnJoin = new Rectangle(160, 600, 400, 78);
-    Rectangle btnParty = new Rectangle(160, 510, 400, 78);
-    Rectangle btnTut = new Rectangle(160, 420, 400, 78);
+    Rectangle btnAi = new Rectangle(160, 790, 400, 76);
+    Rectangle btnCreate = new Rectangle(160, 700, 400, 76);
+    Rectangle btnJoin = new Rectangle(160, 610, 400, 76);
+    Rectangle btnParty = new Rectangle(160, 520, 400, 76);
+    Rectangle btnTut = new Rectangle(160, 340, 400, 76);
     Rectangle btnProfile = new Rectangle(440, 1190, 260, 64);
     Rectangle btnEnd = new Rectangle(230, 618, 260, 76);
     Rectangle btnMenu = new Rectangle(20, 20, 150, 56);
@@ -180,6 +180,27 @@ public class VexorixGame extends ApplicationAdapter {
     Array<String> plKeys = new Array<>();
     HashMap<String, String> plNameByKey = new HashMap<>();
 
+    // ---- duel: foto profil, nama lawan, deck, skill & ultimate ----
+    PlatformBridge bridge;
+    public VexorixGame() { }
+    public VexorixGame(PlatformBridge bridge) { this.bridge = bridge; }
+    Texture avatarTex;
+    String oppName = "LAWAN";
+    Array<CardDef> pendA, pendB;
+    String pendOpp;
+    Array<String> deckIds = new Array<>();
+    boolean[] deckSel = new boolean[0];
+    int deckPage = 0;
+    static final int DECK_MIN = 5, DECK_MAX = 12, DECK_PER_PAGE = 24;
+    Rectangle btnDeck = new Rectangle(160, 430, 400, 76);
+    Rectangle btnDeckSave = new Rectangle(260, 24, 220, 64);
+    Rectangle btnDeckPrev = new Rectangle(500, 24, 80, 64), btnDeckNext = new Rectangle(600, 24, 80, 64);
+    Rectangle btnPhoto = new Rectangle(160, 240, 400, 80);
+    Rectangle btnSkill = new Rectangle(20, 618, 190, 76), btnUlt = new Rectangle(510, 618, 190, 76);
+    String bannerText = "";
+    float bannerT = 0, bannerMax = 1f;
+    boolean bannerUlt = false;
+
     @Override
     public void create() {
         batch = new SpriteBatch();
@@ -199,6 +220,9 @@ public class VexorixGame extends ApplicationAdapter {
         pRounds = prefs.getInteger("pRounds", 5);
         pTimer = prefs.getInteger("pTimer", 20);
         pPunish = prefs.getString("punish", pPunish);
+        String ds = prefs.getString("deck", "");
+        if (!ds.isEmpty()) for (String id : ds.split(",")) if (!id.trim().isEmpty()) deckIds.add(id.trim());
+        loadAvatar();
         cam = new OrthographicCamera();
         vp = new FitViewport(W, H, cam);
         try {
@@ -449,6 +473,7 @@ public class VexorixGame extends ApplicationAdapter {
         else if (mode == Mode.PSETUP) drawPSetup();
         else if (mode == Mode.PLOBBY) drawPLobby();
         else if (mode == Mode.PGAME) drawPGame();
+        else if (mode == Mode.DECK) drawDeck();
         else drawGame();
         if (msgT > 0 && error == null) {
             box(60, 1138, 600, 40, 2, GOLD_DK, Color.valueOf("2a2140"), Color.valueOf("120d22"));
@@ -456,6 +481,7 @@ public class VexorixGame extends ApplicationAdapter {
         }
         if (mode == Mode.GAME && error == null && tutorial) buildTutorial();
         if (mode == Mode.GAME && error == null && talks.size > 0) buildTalk();
+        if (mode == Mode.GAME && error == null && bannerT > 0) buildBanner();
         sr.end();
 
         batch.begin();
@@ -514,6 +540,7 @@ public class VexorixGame extends ApplicationAdapter {
     void update(float dt) {
         time += dt;
         updateFx(dt);
+        if (bannerT > 0) bannerT -= dt;
         if (talks.size > 0) {
             Talk tk = talks.first();
             tk.t += dt;
@@ -569,19 +596,21 @@ public class VexorixGame extends ApplicationAdapter {
         sr.rect(400, 928, 200, 2);
         diamond(360, 929, 10, GOLD);
         label("Susun strategi, mainkan kartumu", 0, 900, W, 24, MUTED, false);
-        button(btnAi, "LAWAN AI", Color.valueOf("2f6f4f"), 30);
-        button(btnCreate, "BUAT ROOM", Color.valueOf("2b4fa3"), 30);
-        button(btnJoin, "GABUNG ROOM", Color.valueOf("6a3fa8"), 30);
+        button(btnAi, "DUEL VS AI", Color.valueOf("2f6f4f"), 30);
+        button(btnCreate, "DUEL: BUAT ROOM", Color.valueOf("2b4fa3"), 28);
+        button(btnJoin, "DUEL: GABUNG", Color.valueOf("6a3fa8"), 28);
         button(btnParty, "PARTY (SKOR)", Color.valueOf("c2255c"), 30);
+        button(btnDeck, "DECK DUEL", Color.valueOf("0b7285"), 30);
         button(btnTut, "TUTORIAL", Color.valueOf("9a6b1f"), 30);
-        label("Baru pertama kali? Coba Tutorial dulu.", 0, 372, W, 20, MUTED, false);
-        label(cards.size + " kartu dimuat", 0, 336, W, 20, MUTED, false);
+        label("Baru pertama kali? Coba Tutorial dulu.", 0, 300, W, 20, MUTED, false);
+        label(cards.size + " kartu dimuat", 0, 268, W, 20, MUTED, false);
         // chip profil
         box(btnProfile.x, btnProfile.y, btnProfile.width, btnProfile.height, 2, GOLD_DK, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
         float pcy = btnProfile.y + btnProfile.height / 2;
         sr.setColor(GOLD);
-        sr.circle(btnProfile.x + 32, pcy, 20);
-        labelC(nick.substring(0, 1).toUpperCase(), btnProfile.x + 32, pcy, 24, INK, true);
+        sr.circle(btnProfile.x + 32, pcy, 21);
+        if (avatarTex != null) addImg(avatarTex, btnProfile.x + 12, pcy - 20, 40, 40);
+        else labelC(nick.substring(0, 1).toUpperCase(), btnProfile.x + 32, pcy, 24, INK, true);
         label(nick, btnProfile.x + 58, pcy + 9, btnProfile.width - 66, 22, TEXT, false, Align.left);
     }
 
@@ -604,6 +633,13 @@ public class VexorixGame extends ApplicationAdapter {
         if (target) { sr.setColor(TARGET); sr.rect(r.x - 6, r.y - 6, r.width + 12, r.height + 12); }
         Color base = mine ? Color.valueOf("14532d") : Color.valueOf("7f1d1d");
         box(r.x, r.y, r.width, r.height, 3, GOLD_DK, base.cpy().lerp(Color.WHITE, 0.12f), base.cpy().lerp(Color.BLACK, 0.5f));
+        float acx = r.x - 40, acy = r.y + r.height / 2;
+        sr.setColor(GOLD);
+        sr.circle(acx, acy, 35);
+        sr.setColor(Color.valueOf("231a3d"));
+        sr.circle(acx, acy, 31);
+        if (mine && avatarTex != null) addImg(avatarTex, acx - 31, acy - 31, 62, 62);
+        else labelC(name.isEmpty() ? "?" : name.substring(0, 1), acx, acy, 30, GOLD, true);
         labelC(name + "    HP " + s.hp, r.x + r.width / 2, r.y + r.height - 24, 30, TEXT, false);
         // bar HP
         float frac = MathUtils.clamp(s.hp / (float) Battle.MAX_HP, 0f, 1f);
@@ -628,7 +664,7 @@ public class VexorixGame extends ApplicationAdapter {
         zone(722, 186);
         zone(388, 194);
 
-        hero(enemyHero, "LAWAN", en, false, selected >= 0 && myTurn);
+        hero(enemyHero, oppName.toUpperCase(), en, false, selected >= 0 && myTurn);
         hero(myHero, nick.toUpperCase(), my, true, false);
 
         for (int i = 0; i < en.board.size; i++) {
@@ -649,6 +685,7 @@ public class VexorixGame extends ApplicationAdapter {
         }
         if (b.turn == me) button(btnEnd, "AKHIRI GILIRAN", Color.valueOf("b45309"), 24);
         else button(btnEnd, "Menunggu...", Color.valueOf("475569"), 24);
+        if (!tutorial) drawSpecialButtons(my, myTurn);
         button(btnMenu, "MENU", Color.valueOf("475569"), 22);
 
         if (!tutorial) drawInspect();
@@ -692,9 +729,14 @@ public class VexorixGame extends ApplicationAdapter {
         });
         label(d.name, 200, py0 + ph - 8, 490, 30, GOLD, true, Align.left);
         label("Biaya " + d.cost + "    ATK " + inspAtk + "    HP " + inspHp, 200, py0 + ph - 50, 490, 22, TEXT, false, Align.left);
-        label(effText(d), 200, py0 + ph - 78, 490, 20, MUTED, false, Align.left);
+        label(effText(d), 200, py0 + ph - 74, 490, 19, MUTED, false, Align.left);
+        if (d.skill.length > 0 || d.ult.length > 0) {
+            String sl = (d.skill.length > 0 ? "Skill " + d.skillName + " (" + d.skillCost + ")" : "")
+                    + (d.ult.length > 0 ? "   Ult " + d.ultName + " (" + d.ultCost + ")" : "");
+            label(sl, 200, py0 + ph - 98, 490, 17, Color.valueOf("8cc8ff"), false, Align.left);
+        }
         if (inspNote != null && !inspNote.isEmpty()) {
-            label(inspNote, 200, py0 + 28, 490, 20, Color.YELLOW, false, Align.left);
+            label(inspNote, 200, py0 + 26, 490, 18, Color.YELLOW, false, Align.left);
         }
     }
 
@@ -922,6 +964,7 @@ public class VexorixGame extends ApplicationAdapter {
 
     /** Menjalankan aksi di Battle sekaligus memunculkan efek skill-nya. */
     boolean doApply(String a) {
+        if (a.startsWith("S:") || a.startsWith("U:")) return doSpecial(a);
         int actor = b.turn;
         String[] p = a.split(":");
         String style = null;
@@ -1189,6 +1232,7 @@ public class VexorixGame extends ApplicationAdapter {
 
     void startTutorial() {
         startGame(false, 0, 12345);
+        oppName = "Pelatih Bot";
         Battle.Side p = b.s[0], o = b.s[1];
         p.hand.clear();
         o.hand.clear();
@@ -1348,7 +1392,8 @@ public class VexorixGame extends ApplicationAdapter {
         sr.circle(360, 980, 94);
         sr.setColor(Color.valueOf("3b2a66"));
         sr.circle(360, 980, 88);
-        labelC(nick.substring(0, 1).toUpperCase(), 360, 980, 90, GOLD, true);
+        if (avatarTex != null) addImg(avatarTex, 360 - 88, 980 - 88, 176, 176);
+        else labelC(nick.substring(0, 1).toUpperCase(), 360, 980, 90, GOLD, true);
         label(nick, 0, 850, W, 46, TEXT, true);
         box(60, 470, 600, 250, 3, GOLD_DK, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
         int wr = stPlayed == 0 ? 0 : Math.round(100f * stWins / stPlayed);
@@ -1357,12 +1402,17 @@ public class VexorixGame extends ApplicationAdapter {
         labelC("Kalah (kena hukuman):  " + stLosses, 360, 550, 28, Color.valueOf("ff8a8a"), false);
         labelC("Win rate:  " + wr + "%", 360, 500, 24, MUTED, false);
         button(btnEditNick, "EDIT NICKNAME", Color.valueOf("2b4fa3"), 28);
+        button(btnPhoto, "GANTI FOTO", Color.valueOf("6a3fa8"), 28);
         button(btnMenu, "MENU", Color.valueOf("475569"), 22);
     }
 
     void onTapProfile() {
         if (btnMenu.contains(tap)) { backToMenu(); return; }
         if (btnEditNick.contains(tap)) askNick();
+        else if (btnPhoto.contains(tap)) {
+            if (bridge == null) toast("Ganti foto hanya tersedia di aplikasi Android");
+            else bridge.pickImage();
+        }
     }
 
     // =====================================================================
@@ -1947,6 +1997,278 @@ public class VexorixGame extends ApplicationAdapter {
         button(btnMenu, "MENU", Color.valueOf("475569"), 22);
     }
 
+
+    // =====================================================================
+    //  FOTO PROFIL, DECK, SKILL & ULTIMATE
+    // =====================================================================
+    void loadAvatar() {
+        try {
+            if (avatarTex != null) { avatarTex.dispose(); avatarTex = null; }
+            FileHandle f = Gdx.files.local("profile.png");
+            if (f.exists()) {
+                Pixmap px = new Pixmap(f);
+                avatarTex = new Texture(px);
+                px.dispose();
+                avatarTex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } catch (Exception e) {
+            avatarTex = null;
+        }
+    }
+
+    /** Dipanggil dari Android setelah foto baru disimpan. */
+    public void onProfilePhotoChanged() {
+        Gdx.app.postRunnable(new Runnable() {
+            public void run() {
+                loadAvatar();
+                toast("Foto profil diperbarui");
+            }
+        });
+    }
+
+    // ---------- deck ----------
+    Array<CardDef> myDeck() {
+        Array<CardDef> out = new Array<>();
+        for (int i = 0; i < deckIds.size; i++) {
+            CardDef d = cardById(deckIds.get(i));
+            if (d != null) out.add(d);
+        }
+        return out.size >= DECK_MIN ? out : cards;
+    }
+
+    String deckStr() {
+        Array<CardDef> d = myDeck();
+        if (d == cards) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < d.size; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(d.get(i).id);
+        }
+        return sb.toString();
+    }
+
+    Array<CardDef> deckFromStr(String str) {
+        Array<CardDef> out = new Array<>();
+        if (str != null && !str.isEmpty()) {
+            for (String id : str.split(",")) {
+                CardDef d = cardById(id.trim());
+                if (d != null) out.add(d);
+            }
+        }
+        return out.size >= 1 ? out : cards;
+    }
+
+    void startDuel(boolean on, int who, long seed, Array<CardDef> a, Array<CardDef> bDeck, String opp) {
+        pendA = a; pendB = bDeck; pendOpp = opp;
+        startGame(on, who, seed);
+    }
+
+    void openDeck() {
+        deckSel = new boolean[cards.size];
+        for (int i = 0; i < cards.size; i++) deckSel[i] = deckIds.contains(cards.get(i).id, false);
+        deckPage = 0;
+        mode = Mode.DECK;
+    }
+
+    int deckCount() {
+        int c = 0;
+        for (int i = 0; i < deckSel.length; i++) if (deckSel[i]) c++;
+        return c;
+    }
+
+    void saveDeck() {
+        int cnt = deckCount();
+        if (cnt < DECK_MIN) { toast("Pilih minimal " + DECK_MIN + " kartu"); return; }
+        deckIds.clear();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cards.size; i++) {
+            if (!deckSel[i]) continue;
+            deckIds.add(cards.get(i).id);
+            if (sb.length() > 0) sb.append(',');
+            sb.append(cards.get(i).id);
+        }
+        prefs.putString("deck", sb.toString());
+        prefs.flush();
+        toast("Deck disimpan (" + cnt + " kartu)");
+    }
+
+    void drawDeck() {
+        label("DECK DUEL", 0, 1262, W, 56, GOLD, true);
+        int cnt = deckCount();
+        label("Pilih " + DECK_MIN + "-" + DECK_MAX + " kartu untuk duel (" + cnt + " dipilih)", 0, 1196, W, 22,
+              cnt >= DECK_MIN ? TEXT : Color.valueOf("ff8a8a"), false);
+        int pages = (cards.size + DECK_PER_PAGE - 1) / DECK_PER_PAGE;
+        for (int k = 0; k < DECK_PER_PAGE; k++) {
+            int idx = deckPage * DECK_PER_PAGE + k;
+            if (idx >= cards.size) break;
+            CardDef d = cards.get(idx);
+            float cx = 24 + (k % 4) * 170, cy = 1130 - (k / 4 + 1) * 160 + 6;
+            boolean on = deckSel[idx];
+            if (on) { sr.setColor(GOLD); sr.rect(cx - 4, cy - 4, 164, 158); }
+            sr.setColor(frameColor(d));
+            sr.rect(cx - 1, cy - 1, 158, 152);
+            grad(cx, cy, 156, 150, CARD_TOP, CARD_BOT);
+            Texture t = art(d);
+            if (t != null) addImg(t, cx + 6, cy + 58, 144, 88);
+            else {
+                grad(cx + 6, cy + 58, 144, 88, effColor(d), CARD_BOT);
+                labelC(d.name.isEmpty() ? "?" : d.name.substring(0, 1), cx + 78, cy + 102, 40, new Color(1f, 1f, 1f, 0.4f), true);
+            }
+            label(d.name, cx + 4, cy + 54, 148, 15, TEXT, true);
+            label("C" + d.cost + "   A" + d.attack + "   H" + d.hp, cx + 4, cy + 30, 148, 15, MUTED, false);
+            if (on) {
+                sr.setColor(GOLD);
+                sr.circle(cx + 140, cy + 134, 12);
+                labelC("OK", cx + 140, cy + 134, 12, INK, true);
+            }
+        }
+        button(btnDeckSave, "SIMPAN", Color.valueOf("2f6f4f"), 24);
+        if (pages > 1) {
+            button(btnDeckPrev, "<", Color.valueOf("475569"), 26);
+            button(btnDeckNext, ">", Color.valueOf("475569"), 26);
+            labelC((deckPage + 1) + "/" + pages, 640, 110, 20, MUTED, false);
+        }
+        button(btnMenu, "MENU", Color.valueOf("475569"), 22);
+    }
+
+    void onTapDeck() {
+        if (btnMenu.contains(tap)) { backToMenu(); return; }
+        int pages = (cards.size + DECK_PER_PAGE - 1) / DECK_PER_PAGE;
+        if (pages > 1 && btnDeckPrev.contains(tap)) { deckPage = (deckPage + pages - 1) % pages; return; }
+        if (pages > 1 && btnDeckNext.contains(tap)) { deckPage = (deckPage + 1) % pages; return; }
+        if (btnDeckSave.contains(tap)) { saveDeck(); return; }
+        int cnt = deckCount();
+        for (int k = 0; k < DECK_PER_PAGE; k++) {
+            int idx = deckPage * DECK_PER_PAGE + k;
+            if (idx >= cards.size) break;
+            float cx = 24 + (k % 4) * 170, cy = 1130 - (k / 4 + 1) * 160 + 6;
+            if (new Rectangle(cx, cy, 156, 150).contains(tap)) {
+                if (!deckSel[idx] && cnt >= DECK_MAX) { toast("Maksimal " + DECK_MAX + " kartu"); return; }
+                deckSel[idx] = !deckSel[idx];
+                return;
+            }
+        }
+    }
+
+    // ---------- skill & ultimate ----------
+    void skillButton(Rectangle r, Color base, String title, String sub, boolean enabled) {
+        Color c = enabled ? base : Color.valueOf("3a3f4b");
+        sr.setColor(enabled ? GOLD : GOLD_DK);
+        sr.rect(r.x - 3, r.y - 3, r.width + 6, r.height + 6);
+        grad(r.x, r.y, r.width, r.height, c.cpy().lerp(Color.WHITE, 0.18f), c.cpy().lerp(Color.BLACK, 0.4f));
+        labelC(title, r.x + r.width / 2, r.y + r.height / 2 + 13, 17, enabled ? TEXT : MUTED, true);
+        labelC(sub, r.x + r.width / 2, r.y + r.height / 2 - 15, 16, enabled ? Color.valueOf("ffe08a") : MUTED, false);
+    }
+
+    void drawSpecialButtons(Battle.Side my, boolean myTurn) {
+        Battle.Unit su = (selected >= 0 && selected < my.board.size) ? my.board.get(selected) : null;
+        boolean ready = myTurn && su != null && su.canAttack;
+        String sn = "SKILL", ss = "pilih kartu", un = "ULTIMATE", us = "pilih kartu";
+        boolean sOn = false, uOn = false;
+        if (su != null) {
+            CardDef d = su.def;
+            sn = d.skill.length > 0 ? d.skillName : "(tanpa skill)";
+            ss = d.skill.length == 0 ? "-" : (su.skillCd > 0 ? "CD " + su.skillCd + " giliran" : "SKILL - Mana " + d.skillCost);
+            sOn = ready && d.skill.length > 0 && su.skillCd == 0 && d.skillCost <= my.mana;
+            un = d.ult.length > 0 ? d.ultName : "(tanpa ult)";
+            us = d.ult.length == 0 ? "-" : (su.ultUsed ? "sudah dipakai" : "ULT - Mana " + d.ultCost);
+            uOn = ready && d.ult.length > 0 && !su.ultUsed && d.ultCost <= my.mana;
+        }
+        skillButton(btnSkill, Color.valueOf("2b4fa3"), sn, ss, sOn);
+        skillButton(btnUlt, Color.valueOf("c2255c"), un, us, uOn);
+    }
+
+    void useSpecial(String kind, Battle.Unit su) {
+        boolean ult = kind.equals("U");
+        CardDef d = su.def;
+        CardDef.Step[] st = ult ? d.ult : d.skill;
+        if (st.length == 0) { toast("Kartu ini belum punya " + (ult ? "ultimate" : "skill")); return; }
+        if (!su.canAttack) { toast("Kartu belum siap"); return; }
+        int cost = ult ? d.ultCost : d.skillCost;
+        if (cost > b.s[me].mana) { toast("Mana tidak cukup"); return; }
+        if (ult && su.ultUsed) { toast("Ultimate sudah dipakai"); return; }
+        if (!ult && su.skillCd > 0) { toast("Skill cooldown " + su.skillCd + " giliran lagi"); return; }
+        int idx = selected;
+        selected = -1;
+        act(kind + ":" + idx);
+    }
+
+    /** Menjalankan skill/ultimate di Battle + animasi dan banner nama skill. */
+    boolean doSpecial(String a) {
+        int actor = b.turn;
+        boolean ult = a.charAt(0) == 'U';
+        String style = null;
+        CardDef d = null;
+        float ux = 0, uy = 0, ohx = 0, ohy = 0, mhx = 0, mhy = 0;
+        boolean hitHero = false, hitUnits = false, healSelf = false;
+        Array<float[]> enemyPos = new Array<>();
+        try {
+            int ai = Integer.parseInt(a.split(":")[1]);
+            Battle.Unit u = b.s[actor].board.get(ai);
+            d = u.def;
+            style = styleOf(d);
+            ux = slotX(ai) + CW / 2;
+            uy = rowOf(actor) + CH / 2;
+            CardDef.Step[] st = ult ? d.ult : d.skill;
+            for (int i = 0; i < st.length; i++) {
+                String t = st[i].t;
+                if (t.equals("hero") || t.equals("drain")) hitHero = true;
+                if (t.equals("all") || t.equals("weak") || t.equals("strong") || t.startsWith("kill") || t.startsWith("freeze")) hitUnits = true;
+                if (t.equals("heal")) healSelf = true;
+            }
+            Battle.Side op = b.s[1 - actor];
+            for (int k = 0; k < op.board.size; k++) enemyPos.add(new float[] { slotX(k) + CW / 2, rowOf(1 - actor) + CH / 2 });
+            Rectangle eh = heroRect(1 - actor), mh = heroRect(actor);
+            ohx = eh.x + eh.width / 2; ohy = eh.y + eh.height / 2;
+            mhx = mh.x + mh.width / 2; mhy = mh.y + mh.height / 2;
+        } catch (Exception e) {
+            style = null;
+        }
+        boolean ok = b.apply(a);
+        if (ok && style != null) {
+            spawnFx(style, ux, uy, ult ? 1.5f : 0.9f);
+            if (hitHero) spawnAttack(style, ux, uy, ohx, ohy);
+            int first = parts.size;
+            if (hitUnits) {
+                for (int i = 0; i < enemyPos.size; i++) spawnFx(style, enemyPos.get(i)[0], enemyPos.get(i)[1], ult ? 0.6f : 0.4f);
+            }
+            if (healSelf) spawnFx("holy", mhx, mhy, 0.6f);
+            for (int i = first; i < parts.size; i++) parts.get(i).delay += 0.18f;
+            bannerUlt = ult;
+            bannerText = ult ? d.ultName : d.skillName;
+            bannerMax = ult ? 2.0f : 1.2f;
+            bannerT = bannerMax;
+        }
+        return ok;
+    }
+
+    void buildBanner() {
+        final float al = MathUtils.clamp(Math.min(bannerT * 3f, (bannerMax - bannerT) * 6f), 0f, 1f);
+        final float bh = bannerUlt ? 170f : 80f;
+        final float by = bannerUlt ? 560f : 640f;
+        over2.add(new Runnable() {
+            public void run() {
+                if (bannerUlt) {
+                    sr.setColor(1f, 0.85f, 0.4f, 0.18f * al);
+                    sr.rect(0, 0, W, H);
+                }
+                sr.setColor(0.04f, 0.02f, 0.1f, 0.88f * al);
+                sr.rect(0, by, W, bh);
+                sr.setColor(GOLD.r, GOLD.g, GOLD.b, al);
+                sr.rect(0, by, W, 3);
+                sr.rect(0, by + bh - 3, W, 3);
+            }
+        });
+        curLayer = 1;
+        if (bannerUlt) {
+            label("ULTIMATE", 0, by + bh - 16, W, 24, new Color(GOLD.r, GOLD.g, GOLD.b, al), true);
+            label(bannerText, 0, by + bh - 66, W, 46, new Color(1f, 1f, 1f, al), true);
+        } else {
+            label(bannerText, 0, by + bh - 20, W, 34, new Color(1f, 1f, 1f, al), true);
+        }
+        curLayer = 0;
+    }
+
     // ---------- input ----------
     void backToMenu() {
         mode = Mode.MENU;
@@ -1971,14 +2293,16 @@ public class VexorixGame extends ApplicationAdapter {
 
     void onTap() {
         if (mode == Mode.MENU) {
-            if (btnAi.contains(tap)) startGame(false, 0, new Random().nextInt(1000000000));
+            if (btnAi.contains(tap)) startDuel(false, 0, new Random().nextInt(1000000000), myDeck(), cards, "Bot Vexorix");
             else if (btnCreate.contains(tap)) createRoom();
             else if (btnJoin.contains(tap)) askCode();
             else if (btnTut.contains(tap)) startTutorial();
+            else if (btnDeck.contains(tap)) openDeck();
             else if (btnParty.contains(tap)) mode = Mode.PSETUP;
             else if (btnProfile.contains(tap)) mode = Mode.PROFILE;
             return;
         }
+        if (mode == Mode.DECK) { onTapDeck(); return; }
         if (mode == Mode.PROFILE) { onTapProfile(); return; }
         if (mode == Mode.PSETUP) { onTapPSetup(); return; }
         if (mode == Mode.PLOBBY) { onTapPLobby(); return; }
@@ -1990,6 +2314,11 @@ public class VexorixGame extends ApplicationAdapter {
 
         boolean myTurn = b.turn == me;
         Battle.Side my = b.s[me], en = b.s[1 - me];
+        if (myTurn && !tutorial && selected >= 0 && selected < my.board.size) {
+            Battle.Unit su = my.board.get(selected);
+            if (btnSkill.contains(tap)) { useSpecial("S", su); return; }
+            if (btnUlt.contains(tap)) { useSpecial("U", su); return; }
+        }
         if (myTurn && btnEnd.contains(tap)) { selected = -1; selHand = -1; act("E"); return; }
 
         for (int i = 0; i < my.hand.size; i++) {
@@ -2043,7 +2372,10 @@ public class VexorixGame extends ApplicationAdapter {
     // ---------- alur game / room ----------
     void startGame(boolean on, int who, long seed) {
         online = on; me = who;
-        b = new Battle(cards, seed);
+        b = new Battle(pendA != null ? pendA : cards, pendB != null ? pendB : cards, seed);
+        oppName = pendOpp != null ? pendOpp : "LAWAN";
+        pendA = null; pendB = null; pendOpp = null;
+        bannerT = 0;
         applied = 0; selected = -1; selHand = -1; insp = null; pollT = 0; aiT = 0;
         polling = false; lobbyBusy = false;
         parts.clear();
@@ -2101,7 +2433,7 @@ public class VexorixGame extends ApplicationAdapter {
         final String code = Room.newCode();
         final long seed = new Random().nextInt(1000000000);
         toast("Membuat room...");
-        Room.create(code, seed, new Room.Cb() {
+        Room.req("PUT", "rooms/" + code + "/meta", "{\"seed\":" + seed + ",\"joined\":false,\"hostName\":\"" + nick + "\",\"hostDeck\":\"" + deckStr() + "\"}", new Room.Cb() {
             public void done(boolean ok, String body) {
                 if (!ok) { toast("Gagal membuat room. Cek URL & rules Firebase"); return; }
                 roomCode = code; lobbySeed = seed;
@@ -2124,7 +2456,7 @@ public class VexorixGame extends ApplicationAdapter {
                 try {
                     if (ok && !body.trim().equals("null")) {
                         JsonValue j = new JsonReader().parse(body);
-                        if (j.getBoolean("joined", false)) startGame(true, 0, lobbySeed);
+                        if (j.getBoolean("joined", false)) startDuel(true, 0, lobbySeed, myDeck(), deckFromStr(j.getString("guestDeck", "")), j.getString("guestName", "Lawan"));
                     }
                 } catch (Exception e) { }
             }
@@ -2154,11 +2486,23 @@ public class VexorixGame extends ApplicationAdapter {
                     JsonValue j = new JsonReader().parse(body);
                     if (j.getBoolean("joined", false)) { toast("Room sudah penuh"); return; }
                     final long seed = j.getLong("seed");
-                    Room.setJoined(code, new Room.Cb() {
-                        public void done(boolean ok2, String body2) {
-                            if (!ok2) { toast("Gagal bergabung"); return; }
-                            roomCode = code;
-                            startGame(true, 1, seed);
+                    final String hName = j.getString("hostName", "Lawan");
+                    final Array<CardDef> hDeck = deckFromStr(j.getString("hostDeck", ""));
+                    final Array<CardDef> gDeck = myDeck();
+                    final String gDeckStr = deckStr();
+                    Room.req("PUT", "rooms/" + code + "/meta/guestDeck", "\"" + gDeckStr + "\"", new Room.Cb() {
+                        public void done(boolean okD, String bodyD) {
+                            Room.req("PUT", "rooms/" + code + "/meta/guestName", "\"" + nick + "\"", new Room.Cb() {
+                                public void done(boolean okN, String bodyN) {
+                                    Room.setJoined(code, new Room.Cb() {
+                                        public void done(boolean ok2, String body2) {
+                                            if (!ok2) { toast("Gagal bergabung"); return; }
+                                            roomCode = code;
+                                            startDuel(true, 1, seed, hDeck, gDeck, hName);
+                                        }
+                                    });
+                                }
+                            });
                         }
                     });
                 } catch (Exception e) {
