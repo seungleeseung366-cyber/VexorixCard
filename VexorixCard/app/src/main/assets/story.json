@@ -1,0 +1,810 @@
+{
+ "speakers": {
+  "xie": {
+   "name": "{nama}",
+   "portrait": "st_p_xie.png"
+  },
+  "pakrt": {
+   "name": "Pak RT",
+   "portrait": "st_p_rt.png"
+  },
+  "masterc": {
+   "name": "Master C",
+   "portrait": "st_p_masterc.png"
+  },
+  "vex": {
+   "name": "VEX-7",
+   "robot": "4dabf7"
+  },
+  "gate": {
+   "name": "GATE-01",
+   "robot": "ff8787"
+  },
+  "kurir": {
+   "name": "KURIR-3",
+   "robot": "8bf0a8"
+  },
+  "arena": {
+   "name": "ARENA-01",
+   "robot": "e599f7"
+  },
+  "narr": {
+   "name": ""
+  }
+ },
+ "maps": {
+  "home": {
+   "name": "Rumah Xie",
+   "image": "st_map_home.jpg",
+   "mask": "st_mask_home.png",
+   "w": 1672,
+   "h": 941,
+   "spawn": [
+    1080,
+    495
+   ],
+   "npcs": [
+    {
+     "id": "vex",
+     "name": "VEX-7",
+     "kind": "robot",
+     "color": "4dabf7",
+     "x": 1200,
+     "y": 495,
+     "talk": [
+      {
+       "scene": "vex_home"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      735,
+      880,
+      230,
+      61
+     ],
+     "to": "town",
+     "spawn": [
+      630,
+      335
+     ]
+    }
+   ],
+   "triggers": [
+    {
+     "rect": [
+      1000,
+      440,
+      160,
+      120
+     ],
+     "scene": "intro_home"
+    }
+   ],
+   "pickups": []
+  },
+  "town": {
+   "name": "Kampung Cerah",
+   "image": "st_map_town.jpg",
+   "mask": "st_mask_town.png",
+   "w": 1672,
+   "h": 941,
+   "spawn": [
+    630,
+    335
+   ],
+   "npcs": [
+    {
+     "id": "pakrt",
+     "name": "Pak RT",
+     "sprite": "st_npc_rt.png",
+     "x": 700,
+     "y": 372,
+     "talk": [
+      {
+       "if": "ch1_done",
+       "scene": "rt_done"
+      },
+      {
+       "if": "got_first",
+       "scene": "rt_gotcard"
+      },
+      {
+       "if": "met_rt",
+       "scene": "rt_repeat"
+      },
+      {
+       "scene": "rt_intro"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      603,
+      258,
+      52,
+      26
+     ],
+     "to": "home",
+     "spawn": [
+      840,
+      860
+     ]
+    },
+    {
+     "rect": [
+      1640,
+      358,
+      32,
+      140
+     ],
+     "to": "ungu",
+     "spawn": [
+      60,
+      190
+     ]
+    },
+    {
+     "rect": [
+      793,
+      925,
+      144,
+      16
+     ],
+     "to": "taman",
+     "spawn": [
+      718,
+      40
+     ]
+    }
+   ],
+   "triggers": [
+    {
+     "rect": [
+      598,
+      300,
+      64,
+      70
+     ],
+     "scene": "rt_intro"
+    }
+   ],
+   "pickups": [
+    {
+     "id": "pk_town_goblin",
+     "x": 1500,
+     "y": 430,
+     "card": "goblin_scout"
+    }
+   ]
+  },
+  "taman": {
+   "name": "Taman Kota",
+   "image": "st_map_taman.jpg",
+   "mask": "st_mask_taman.png",
+   "w": 1672,
+   "h": 941,
+   "spawn": [
+    718,
+    40
+   ],
+   "npcs": [
+    {
+     "id": "kurir",
+     "name": "KURIR-3",
+     "kind": "robot",
+     "color": "8bf0a8",
+     "x": 700,
+     "y": 520,
+     "talk": [
+      {
+       "scene": "kurir_taman"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      655,
+      0,
+      125,
+      14
+     ],
+     "to": "town",
+     "spawn": [
+      865,
+      905
+     ]
+    }
+   ],
+   "triggers": [],
+   "pickups": [
+    {
+     "id": "pk_taman_monk",
+     "x": 1142,
+     "y": 135,
+     "card": "healer_monk"
+    },
+    {
+     "id": "pk_taman_scholar",
+     "x": 880,
+     "y": 198,
+     "card": "scholar"
+    },
+    {
+     "id": "pk_taman_sela",
+     "x": 1240,
+     "y": 340,
+     "card": "sela"
+    }
+   ]
+  },
+  "ungu": {
+   "name": "Distrik Ungu",
+   "image": "st_map_ungu.jpg",
+   "mask": "st_mask_ungu.png",
+   "w": 1672,
+   "h": 941,
+   "spawn": [
+    60,
+    190
+   ],
+   "npcs": [
+    {
+     "id": "gate",
+     "name": "GATE-01",
+     "kind": "robot",
+     "color": "ff8787",
+     "x": 770,
+     "y": 735,
+     "talk": [
+      {
+       "scene": "gate_robot"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      0,
+      165,
+      22,
+      45
+     ],
+     "to": "town",
+     "spawn": [
+      1620,
+      430
+     ]
+    },
+    {
+     "rect": [
+      1650,
+      165,
+      22,
+      45
+     ],
+     "to": "alun",
+     "spawn": [
+      60,
+      262
+     ],
+     "need": "ch1_done",
+     "deny": "alun_locked"
+    },
+    {
+     "rect": [
+      800,
+      484,
+      76,
+      20
+     ],
+     "to": "master",
+     "spawn": [
+      860,
+      870
+     ]
+    }
+   ],
+   "triggers": [],
+   "pickups": [
+    {
+     "id": "pk_ungu_fox",
+     "x": 1400,
+     "y": 190,
+     "card": "shadow_fox"
+    }
+   ]
+  },
+  "master": {
+   "name": "Rumah Master C",
+   "image": "st_map_master.jpg",
+   "mask": "st_mask_master.png",
+   "w": 1536,
+   "h": 1024,
+   "spawn": [
+    860,
+    870
+   ],
+   "npcs": [
+    {
+     "id": "masterc",
+     "name": "Master C",
+     "sprite": "st_npc_masterc.png",
+     "x": 445,
+     "y": 385,
+     "talk": [
+      {
+       "if": "ch1_done",
+       "scene": "master_after"
+      },
+      {
+       "scene": "master_intro"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      770,
+      975,
+      180,
+      49
+     ],
+     "to": "ungu",
+     "spawn": [
+      835,
+      735
+     ]
+    }
+   ],
+   "triggers": [],
+   "pickups": []
+  },
+  "alun": {
+   "name": "Alun-alun Vexorix",
+   "image": "st_map_alun.jpg",
+   "mask": "st_mask_alun.png",
+   "w": 1672,
+   "h": 941,
+   "spawn": [
+    60,
+    262
+   ],
+   "npcs": [
+    {
+     "id": "arena",
+     "name": "ARENA-01",
+     "kind": "robot",
+     "color": "e599f7",
+     "x": 846,
+     "y": 665,
+     "talk": [
+      {
+       "scene": "arena_robot"
+      }
+     ]
+    }
+   ],
+   "portals": [
+    {
+     "rect": [
+      0,
+      215,
+      22,
+      95
+     ],
+     "to": "ungu",
+     "spawn": [
+      1610,
+      190
+     ]
+    }
+   ],
+   "triggers": [],
+   "pickups": [
+    {
+     "id": "pk_alun_butz",
+     "x": 1180,
+     "y": 400,
+     "card": "butz"
+    },
+    {
+     "id": "pk_alun_golem",
+     "x": 450,
+     "y": 400,
+     "card": "stone_golem"
+    }
+   ]
+  }
+ },
+ "scenes": {
+  "intro_home": [
+   {
+    "who": "vex",
+    "text": "[SISTEM AKTIF] Selamat pagi, {nama}. Waktu: 06.30. Suhu kamar: 24 derajat. Kualitas tidur: 61 persen. BIP."
+   },
+   {
+    "who": "xie",
+    "text": "...Lima menit lagi."
+   },
+   {
+    "who": "vex",
+    "text": "PERMINTAAN DITOLAK. Pak RT sudah berdiri di depan rumah selama 14 menit."
+   },
+   {
+    "who": "xie",
+    "text": "Lagi? Dia bahkan tidak pernah pakai bel."
+   },
+   {
+    "who": "vex",
+    "text": "INFO: hari ini beliau membawa papan catatan. Probabilitas ceramah panjang: 97 persen."
+   },
+   {
+    "who": "xie",
+    "text": "Baik, baik. Aku keluar."
+   },
+   {
+    "who": "vex",
+    "text": "Saran navigasi: keluar lewat pintu depan, arah selatan. Aku memantau dari sini. BIP BOP."
+   },
+   {
+    "obj": "Keluar rumah lewat pintu depan (selatan) dan temui Pak RT."
+   }
+  ],
+  "vex_home": [
+   {
+    "who": "vex",
+    "text": "Tujuan saat ini: {obj}"
+   },
+   {
+    "who": "vex",
+    "text": "BIP. Tombol AKSI untuk bicara dan mengambil benda. Tombol MENU di kanan atas untuk koleksi kartu dan pengaturan."
+   }
+  ],
+  "rt_intro": [
+   {
+    "who": "pakrt",
+    "text": "XIE! Akhirnya keluar juga. Kamu tahu sekarang jam berapa?"
+   },
+   {
+    "who": "xie",
+    "text": "Pagi, Pak RT."
+   },
+   {
+    "who": "pakrt",
+    "text": "Pagi, pagi... Kemarin Bapak rapat warga. Hasilnya: semua anak di RT ini wajib punya guru Vexorix."
+   },
+   {
+    "who": "xie",
+    "text": "Wajib?"
+   },
+   {
+    "who": "pakrt",
+    "text": "Wajib. Jangan pasang muka begitu. Ini demi masa depan kampung kita."
+   },
+   {
+    "who": "pakrt",
+    "text": "Di Distrik Ungu, sebelah timur, ada rumah besar berwarna ungu. Itu rumah Master C, pakar kartu paling dihormati di sini."
+   },
+   {
+    "who": "xie",
+    "text": "Master C... yang katanya jarang menerima murid?"
+   },
+   {
+    "who": "pakrt",
+    "text": "Makanya Bapak sudah titip surat. Datang sopan, jangan telat, jangan bikin ribut. Paham?"
+   },
+   {
+    "who": "xie",
+    "text": "Paham."
+   },
+   {
+    "who": "pakrt",
+    "text": "Satu lagi. Kalau lihat kartu tergeletak di jalan, ambil saja. Bapak tidak lihat apa-apa."
+   },
+   {
+    "who": "xie",
+    "text": "...Itu boleh?"
+   },
+   {
+    "who": "pakrt",
+    "text": "Bapak tidak lihat apa-apa. Sana berangkat. Ikuti jalan besar ke timur."
+   },
+   {
+    "set": "met_rt"
+   },
+   {
+    "obj": "Pergi ke rumah Master C di Distrik Ungu (ikuti jalan besar ke timur)."
+   }
+  ],
+  "rt_repeat": [
+   {
+    "who": "pakrt",
+    "text": "Rumah Master C ada di timur, ikuti jalan besar sampai Distrik Ungu. Jangan lari-larian, jangan injak rumput orang!"
+   }
+  ],
+  "rt_gotcard": [
+   {
+    "who": "pakrt",
+    "text": "Sudah dapat kartu pertama? Bagus. Jaga baik-baik. Kalau ada yang mengganggu kartumu, lapor ke Bapak."
+   },
+   {
+    "who": "xie",
+    "text": "Siap, Pak RT."
+   }
+  ],
+  "rt_done": [
+   {
+    "who": "pakrt",
+    "text": "Dengar-dengar kamu diterima Master C. Bapak bangga. Bukan karena kamu hebat, tapi karena laporan RT Bapak jadi bagus."
+   },
+   {
+    "who": "xie",
+    "text": "Terima kasih, Pak RT. Kurang lebih."
+   },
+   {
+    "who": "pakrt",
+    "text": "Jangan lupa cari kartu di Taman Kota. Kata kurir, banyak yang jatuh di sana. Bapak tidak lihat apa-apa."
+   }
+  ],
+  "gate_robot": [
+   {
+    "who": "gate",
+    "text": "PEMINDAIAN... Nama: {nama}. Status: calon murid. Surat dari Pak RT: DITERIMA. BIP."
+   },
+   {
+    "who": "gate",
+    "text": "Master C berada di ruang studi, lantai satu. Gerbang tidak dikunci."
+   },
+   {
+    "who": "xie",
+    "text": "Kalau tidak dikunci, kenapa ada penjaga?"
+   },
+   {
+    "who": "gate",
+    "text": "Penjaga berfungsi sebagai dekorasi dan pengingat sopan santun. BIP BOP."
+   },
+   {
+    "who": "gate",
+    "text": "PERINGATAN: lap sepatu sebelum masuk. Master C mengecek lantai."
+   }
+  ],
+  "kurir_taman": [
+   {
+    "who": "kurir",
+    "text": "BIP. Kurir pengiriman kartu. Laporan: kartu terdeteksi di dekat gazebo, jalur taman, dan sudut air mancur."
+   },
+   {
+    "who": "xie",
+    "text": "Kamu tahu di mana kartunya, tapi tidak mengambilnya?"
+   },
+   {
+    "who": "kurir",
+    "text": "Aku hanya mengantar. Mengambil adalah tugas manusia. BOP."
+   },
+   {
+    "who": "kurir",
+    "text": "Info tambahan: kartu yang sudah kamu miliki tidak akan memberi bonus dua kali. Efisiensi 100 persen."
+   }
+  ],
+  "arena_robot": [
+   {
+    "who": "arena",
+    "text": "SELAMAT DATANG DI ALUN-ALUN VEXORIX, {nama}. BIP BOP."
+   },
+   {
+    "who": "arena",
+    "text": "Pendaftaran duel melawan para pakar: DIBUKA DI BAB 2. Harap latih kartumu dahulu."
+   },
+   {
+    "who": "xie",
+    "text": "Para pakar... seperti apa mereka?"
+   },
+   {
+    "who": "arena",
+    "text": "Data: 5 pakar. Tingkat keramahan rata-rata: 12 persen. Tingkat meremehkan pemula: 98 persen. BIP."
+   }
+  ],
+  "alun_locked": [
+   {
+    "who": "arena",
+    "text": "AKSES DITOLAK. Alun-alun Vexorix hanya untuk murid terdaftar. Selesaikan pelatihan Master C terlebih dahulu. BIP."
+   }
+  ],
+  "master_intro": [
+   {
+    "who": "masterc",
+    "text": "Hm. Pintu terbuka, langkah ragu-ragu, sepatu belum dilap. Kamu pasti Xie, titipan Pak RT."
+   },
+   {
+    "who": "xie",
+    "text": "Saya ingin belajar, Master."
+   },
+   {
+    "who": "masterc",
+    "text": "Semua orang yang datang ke sini bilang begitu. Sebagian ingin belajar menang. Sedikit yang ingin belajar kalah dengan baik."
+   },
+   {
+    "who": "masterc",
+    "text": "Kita mulai dari dasar. Duel Vexorix dimainkan dengan kartu. Tiap kartu punya biaya mana, ATK, dan HP."
+   },
+   {
+    "who": "masterc",
+    "text": "Mana bertambah satu setiap giliran. Kartu yang baru turun belum bisa menyerang. Sabar adalah senjata pertama."
+   },
+   {
+    "who": "masterc",
+    "text": "Tiap kartu juga punya SKILL yang bisa dipakai berulang dengan jeda, dan satu ULTIMATE yang hanya sekali per duel."
+   },
+   {
+    "who": "xie",
+    "text": "Terdengar rumit."
+   },
+   {
+    "who": "masterc",
+    "text": "Semua yang bagus terdengar rumit sampai kamu mencobanya. Sekarang, kartu pertamamu."
+   },
+   {
+    "who": "masterc",
+    "text": "Jangan pilih yang terkuat. Pilih yang paling cocok dengan caramu bertarung.",
+    "choice": [
+     {
+      "text": "Squire - kecil, murah, bisa memasang perisai",
+      "give": "squire",
+      "set": "got_first"
+     },
+     {
+      "text": "Nuke - penyerang liar, pukulannya mantap",
+      "give": "nuke",
+      "set": "got_first"
+     },
+     {
+      "text": "Iron Guard - dinding besi yang sabar",
+      "give": "iron_guard",
+      "set": "got_first"
+     }
+    ]
+   },
+   {
+    "who": "masterc",
+    "text": "Pilihan yang menarik. {kartu} akan menemanimu mulai sekarang."
+   },
+   {
+    "who": "xie",
+    "text": "Terima kasih, Master."
+   },
+   {
+    "who": "masterc",
+    "text": "Terima kasihnya nanti. Sekarang buktikan. Duel latihan, lawan aku."
+   },
+   {
+    "obj": "Duel latihan melawan Master C."
+   },
+   {
+    "battle": "training"
+   }
+  ],
+  "master_win": [
+   {
+    "who": "masterc",
+    "text": "Hm. Kamu membaca papan, bukan hanya kartu. Itu langka untuk pemula."
+   },
+   {
+    "who": "xie",
+    "text": "Saya cuma beruntung."
+   },
+   {
+    "who": "masterc",
+    "text": "Keberuntungan tidak punya rencana. Kamu punya. Ambil ini, hadiah dari guru yang jarang memberi hadiah."
+   },
+   {
+    "give": "flame_knight"
+   },
+   {
+    "goto": "master_outro"
+   }
+  ],
+  "master_lose": [
+   {
+    "who": "masterc",
+    "text": "Kalah. Wajar. Yang tidak wajar adalah kalau kamu tidak belajar apa pun darinya."
+   },
+   {
+    "who": "xie",
+    "text": "...Lain kali saya akan lebih baik."
+   },
+   {
+    "who": "masterc",
+    "text": "Tentu. Ambil ini, kamu akan membutuhkannya."
+   },
+   {
+    "give": "flame_knight"
+   },
+   {
+    "goto": "master_outro"
+   }
+  ],
+  "master_outro": [
+   {
+    "who": "narr",
+    "text": "Kamu mendapat kartu {kartu}."
+   },
+   {
+    "who": "masterc",
+    "text": "Dengar baik-baik, Xie. Di luar sana banyak kartu yang tersebar: di jalan, di taman, di alun-alun."
+   },
+   {
+    "who": "masterc",
+    "text": "Kumpulkan semuanya. Kartu bukan sekadar angka. Mereka punya cerita dan ingatan."
+   },
+   {
+    "who": "masterc",
+    "text": "Alun-alun Vexorix kini terbuka untukmu. Di sana tinggal para pakar duel. Aku sudah menyebut namamu pada mereka."
+   },
+   {
+    "who": "xie",
+    "text": "Para pakar?"
+   },
+   {
+    "who": "masterc",
+    "text": "Mereka tidak akan ramah. Mereka akan meremehkanmu. Biarkan saja, dan buktikan lewat kartu."
+   },
+   {
+    "set": "ch1_done"
+   },
+   {
+    "obj": "Jelajahi: cari kartu di Taman Kota, jalan, Distrik Ungu, dan alun-alun. Duel pakar hadir di Bab 2."
+   }
+  ],
+  "master_after": [
+   {
+    "who": "masterc",
+    "text": "Alun-alun sudah terbuka. Kumpulkan kartu dan pelajari skill serta ultimate-nya."
+   },
+   {
+    "who": "masterc",
+    "text": "Kartu yang dimengerti lebih kuat daripada kartu yang mahal."
+   },
+   {
+    "who": "xie",
+    "text": "Baik, Master."
+   }
+  ],
+  "pickup_found": [
+   {
+    "who": "narr",
+    "text": "Kamu menemukan kartu {kartu}!"
+   }
+  ],
+  "pickup_dup": [
+   {
+    "who": "narr",
+    "text": "Kartu {kartu} sudah ada di koleksimu."
+   }
+  ]
+ },
+ "battles": {
+  "training": {
+   "name": "Master C",
+   "hp": 14,
+   "deck": [
+    "scholar",
+    "iron_guard",
+    "shadow_fox",
+    "healer_monk",
+    "squire"
+   ],
+   "win": "master_win",
+   "lose": "master_lose"
+  }
+ }
+}
