@@ -53,7 +53,7 @@ public class VexorixGame extends ApplicationAdapter {
     static final Color EMBER = new Color(0.9f, 0.72f, 0.35f, 0.3f);
     static final Color DIM = new Color(0f, 0f, 0f, 0.72f);
 
-    enum Mode { MENU, LOBBY, GAME, PROFILE, PSETUP, PLOBBY, PGAME, DECK }
+    enum Mode { MENU, LOBBY, GAME, PROFILE, PSETUP, PLOBBY, PGAME, DECK, STORY, COLLECT }
     Mode mode = Mode.MENU;
 
     SpriteBatch batch;
@@ -138,11 +138,11 @@ public class VexorixGame extends ApplicationAdapter {
         "Itu dasar-dasarnya. Tips: pakai semua manamu tiap giliran, serang saat kartu siap, dan jaga HP-mu. Selamat bermain!"
     };
 
-    Rectangle btnAi = new Rectangle(160, 790, 400, 76);
-    Rectangle btnCreate = new Rectangle(160, 700, 400, 76);
-    Rectangle btnJoin = new Rectangle(160, 610, 400, 76);
-    Rectangle btnParty = new Rectangle(160, 520, 400, 76);
-    Rectangle btnTut = new Rectangle(160, 340, 400, 76);
+    Rectangle btnAi = new Rectangle(160, 718, 400, 70);
+    Rectangle btnCreate = new Rectangle(160, 636, 400, 70);
+    Rectangle btnJoin = new Rectangle(160, 554, 400, 70);
+    Rectangle btnParty = new Rectangle(160, 472, 400, 70);
+    Rectangle btnTut = new Rectangle(160, 308, 400, 70);
     Rectangle btnProfile = new Rectangle(440, 1190, 260, 64);
     Rectangle btnEnd = new Rectangle(230, 618, 260, 76);
     Rectangle btnMenu = new Rectangle(20, 20, 150, 56);
@@ -192,7 +192,7 @@ public class VexorixGame extends ApplicationAdapter {
     boolean[] deckSel = new boolean[0];
     int deckPage = 0;
     static final int DECK_MIN = 5, DECK_MAX = 12, DECK_PER_PAGE = 24;
-    Rectangle btnDeck = new Rectangle(160, 430, 400, 76);
+    Rectangle btnDeck = new Rectangle(160, 390, 400, 70);
     Rectangle btnDeckSave = new Rectangle(260, 24, 220, 64);
     Rectangle btnDeckPrev = new Rectangle(500, 24, 80, 64), btnDeckNext = new Rectangle(600, 24, 80, 64);
     Rectangle btnPhoto = new Rectangle(160, 240, 400, 80);
@@ -200,6 +200,27 @@ public class VexorixGame extends ApplicationAdapter {
     String bannerText = "";
     float bannerT = 0, bannerMax = 1f;
     boolean bannerUlt = false;
+
+    // ---- story ----
+    static final float STORY_SCALE = 1.8f;
+    static final int MASK_CELL = 8;
+    JsonValue storyRoot, stMapDef, dlgLines, dlgChoices;
+    boolean storyLoaded = false, stMenuOpen = false, dlgOn = false, stMoving = false;
+    String stMap = "home", stObjective = "", mcName = "Xie", lastCardName = "", storyBattle = null;
+    String dlgWho = "", dlgText = "";
+    float stX, stY, stLastX, stLastY, stMapW, stMapH, stAnim, stFade, dlgTime;
+    int stDir = 0, dlgIdx = 0;
+    boolean[][] stWalk;
+    Texture stMapTex;
+    HashSet<String> stFlags = new HashSet<>(), stOwned = new HashSet<>();
+    Vector2 tp2 = new Vector2();
+    Rectangle stUp = new Rectangle(115, 235, 90, 90), stDown = new Rectangle(115, 55, 90, 90);
+    Rectangle stLeft = new Rectangle(20, 145, 90, 90), stRight = new Rectangle(210, 145, 90, 90);
+    Rectangle stBtnA = new Rectangle(500, 110, 160, 160), stBtnMenu = new Rectangle(560, 1196, 140, 56);
+    Rectangle btnStory = new Rectangle(160, 800, 400, 70);
+    Rectangle[] stMenuBtn = {
+        new Rectangle(160, 780, 400, 76), new Rectangle(160, 680, 400, 76), new Rectangle(160, 580, 400, 76),
+        new Rectangle(160, 480, 400, 76), new Rectangle(160, 380, 400, 76) };
 
     @Override
     public void create() {
@@ -454,6 +475,8 @@ public class VexorixGame extends ApplicationAdapter {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         vp.apply();
         cam.update();
+        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(vp.getScreenX(), vp.getScreenY(), vp.getScreenWidth(), vp.getScreenHeight());
         sr.setProjectionMatrix(cam.combined);
         batch.setProjectionMatrix(cam.combined);
 
@@ -474,6 +497,8 @@ public class VexorixGame extends ApplicationAdapter {
         else if (mode == Mode.PLOBBY) drawPLobby();
         else if (mode == Mode.PGAME) drawPGame();
         else if (mode == Mode.DECK) drawDeck();
+        else if (mode == Mode.STORY) drawStory();
+        else if (mode == Mode.COLLECT) drawCollect();
         else drawGame();
         if (msgT > 0 && error == null) {
             box(60, 1138, 600, 40, 2, GOLD_DK, Color.valueOf("2a2140"), Color.valueOf("120d22"));
@@ -481,7 +506,8 @@ public class VexorixGame extends ApplicationAdapter {
         }
         if (mode == Mode.GAME && error == null && tutorial) buildTutorial();
         if (mode == Mode.GAME && error == null && talks.size > 0) buildTalk();
-        if (mode == Mode.GAME && error == null && bannerT > 0) buildBanner();
+        if (mode == Mode.STORY && error == null) buildStoryOverlays();
+        if ((mode == Mode.GAME || mode == Mode.STORY) && error == null && bannerT > 0) buildBanner();
         sr.end();
 
         batch.begin();
@@ -525,6 +551,7 @@ public class VexorixGame extends ApplicationAdapter {
         batch.begin();
         drawTexts(1);
         batch.end();
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
 
     void drawTexts(int layer) {
@@ -564,6 +591,8 @@ public class VexorixGame extends ApplicationAdapter {
             plobbyUpdate(dt);
         } else if (mode == Mode.PGAME) {
             pgameUpdate(dt);
+        } else if (mode == Mode.STORY) {
+            storyUpdate(dt);
         } else if (mode == Mode.GAME && b != null && b.winner < 0) {
             if (!online) {
                 if (b.turn == 1) {
@@ -596,14 +625,15 @@ public class VexorixGame extends ApplicationAdapter {
         sr.rect(400, 928, 200, 2);
         diamond(360, 929, 10, GOLD);
         label("Susun strategi, mainkan kartumu", 0, 900, W, 24, MUTED, false);
-        button(btnAi, "DUEL VS AI", Color.valueOf("2f6f4f"), 30);
-        button(btnCreate, "DUEL: BUAT ROOM", Color.valueOf("2b4fa3"), 28);
-        button(btnJoin, "DUEL: GABUNG", Color.valueOf("6a3fa8"), 28);
-        button(btnParty, "PARTY (SKOR)", Color.valueOf("c2255c"), 30);
-        button(btnDeck, "DECK DUEL", Color.valueOf("0b7285"), 30);
-        button(btnTut, "TUTORIAL", Color.valueOf("9a6b1f"), 30);
-        label("Baru pertama kali? Coba Tutorial dulu.", 0, 300, W, 20, MUTED, false);
-        label(cards.size + " kartu dimuat", 0, 268, W, 20, MUTED, false);
+        button(btnStory, "STORY", Color.valueOf("b45309"), 32);
+        button(btnAi, "DUEL VS AI", Color.valueOf("2f6f4f"), 28);
+        button(btnCreate, "DUEL: BUAT ROOM", Color.valueOf("2b4fa3"), 26);
+        button(btnJoin, "DUEL: GABUNG", Color.valueOf("6a3fa8"), 26);
+        button(btnParty, "PARTY (SKOR)", Color.valueOf("c2255c"), 28);
+        button(btnDeck, "DECK DUEL", Color.valueOf("0b7285"), 28);
+        button(btnTut, "TUTORIAL", Color.valueOf("9a6b1f"), 28);
+        label("Baru pertama kali? Coba Tutorial dulu.", 0, 268, W, 20, MUTED, false);
+        label(cards.size + " kartu dimuat", 0, 236, W, 20, MUTED, false);
         // chip profil
         box(btnProfile.x, btnProfile.y, btnProfile.width, btnProfile.height, 2, GOLD_DK, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
         float pcy = btnProfile.y + btnProfile.height / 2;
@@ -2269,6 +2299,677 @@ public class VexorixGame extends ApplicationAdapter {
         curLayer = 0;
     }
 
+
+    // =====================================================================
+    //  MODE STORY
+    // =====================================================================
+    String joinSet(HashSet<String> set) {
+        StringBuilder sb = new StringBuilder();
+        for (String x : set) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(x);
+        }
+        return sb.toString();
+    }
+
+    boolean flag(String f) { return stFlags.contains(f); }
+
+    boolean cond(String c) {
+        if (c == null || c.isEmpty()) return true;
+        if (c.startsWith("!")) return !flag(c.substring(1));
+        return flag(c);
+    }
+
+    String fmt(String t) {
+        return t.replace("{nama}", mcName).replace("{kartu}", lastCardName).replace("{obj}", stObjective);
+    }
+
+    void loadStory() {
+        if (storyLoaded) return;
+        try {
+            storyRoot = new JsonReader().parse(Gdx.files.internal("story.json"));
+            storyLoaded = true;
+        } catch (Exception e) {
+            toast("Gagal memuat story.json");
+        }
+    }
+
+    void openStory() {
+        loadStory();
+        if (!storyLoaded) return;
+        if (prefs.getBoolean("st_started", false)) {
+            loadStoryState();
+            mode = Mode.STORY;
+            checkTriggers();
+        } else {
+            askMcName(true);
+        }
+    }
+
+    void askMcName(final boolean newGame) {
+        Gdx.input.getTextInput(new Input.TextInputListener() {
+            public void input(final String text) {
+                Gdx.app.postRunnable(new Runnable() {
+                    public void run() {
+                        String n = cleanText(text, 12);
+                        if (n.isEmpty()) n = "Xie";
+                        if (newGame) newStory(n);
+                        else { mcName = n; saveStory(); toast("Nama MC diubah"); }
+                    }
+                });
+            }
+            public void canceled() { }
+        }, "Nama MC", mcName.isEmpty() ? "Xie" : mcName, "Nama karakter utama");
+    }
+
+    void newStory(String name) {
+        mcName = name;
+        stFlags.clear();
+        stOwned.clear();
+        stObjective = "";
+        JsonValue home = storyRoot.get("maps").get("home");
+        loadMap("home", home.get("spawn").get(0).asFloat(), home.get("spawn").get(1).asFloat());
+        prefs.putBoolean("st_started", true);
+        saveStory();
+        mode = Mode.STORY;
+        checkTriggers();
+    }
+
+    void saveStory() {
+        prefs.putString("st_name", mcName);
+        prefs.putString("st_flags", joinSet(stFlags));
+        prefs.putString("st_owned", joinSet(stOwned));
+        prefs.putString("st_obj", stObjective);
+        prefs.putString("st_map", stMap);
+        prefs.putFloat("st_x", stX);
+        prefs.putFloat("st_y", stY);
+        prefs.flush();
+    }
+
+    void loadStoryState() {
+        mcName = prefs.getString("st_name", "Xie");
+        stFlags.clear();
+        stOwned.clear();
+        for (String f : prefs.getString("st_flags", "").split(",")) if (!f.isEmpty()) stFlags.add(f);
+        for (String f : prefs.getString("st_owned", "").split(",")) if (!f.isEmpty()) stOwned.add(f);
+        stObjective = prefs.getString("st_obj", "");
+        String m = prefs.getString("st_map", "home");
+        if (storyRoot.get("maps").get(m) == null) m = "home";
+        JsonValue md = storyRoot.get("maps").get(m);
+        float x = prefs.getFloat("st_x", md.get("spawn").get(0).asFloat());
+        float y = prefs.getFloat("st_y", md.get("spawn").get(1).asFloat());
+        loadMap(m, x, y);
+    }
+
+    void loadMap(String id, float x, float y) {
+        JsonValue md = storyRoot.get("maps").get(id);
+        if (md == null) return;
+        try {
+            if (stMapTex != null) { stMapTex.dispose(); stMapTex = null; }
+            stMapTex = new Texture(Gdx.files.internal(md.getString("image")));
+            stMapTex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            stMapW = md.getFloat("w");
+            stMapH = md.getFloat("h");
+            Pixmap pm = new Pixmap(Gdx.files.internal(md.getString("mask")));
+            stWalk = new boolean[pm.getWidth()][pm.getHeight()];
+            for (int cx = 0; cx < pm.getWidth(); cx++) {
+                for (int cy = 0; cy < pm.getHeight(); cy++) {
+                    stWalk[cx][cy] = ((pm.getPixel(cx, cy) >>> 24) & 0xff) > 128;
+                }
+            }
+            pm.dispose();
+        } catch (Exception e) {
+            toast("Gagal memuat peta: " + id);
+            return;
+        }
+        stMap = id;
+        stMapDef = md;
+        stX = x; stY = y;
+        stLastX = x; stLastY = y;
+        stFade = 0.5f;
+        stMoving = false;
+    }
+
+    boolean walkAt(float x, float y) {
+        int cx = (int) (x / MASK_CELL), cy = (int) (y / MASK_CELL);
+        if (stWalk == null || cx < 0 || cy < 0 || cx >= stWalk.length || cy >= stWalk[0].length) return false;
+        return stWalk[cx][cy];
+    }
+
+    boolean npcBlocks(float x, float y) {
+        JsonValue npcs = stMapDef.get("npcs");
+        if (npcs == null) return false;
+        for (JsonValue n = npcs.child; n != null; n = n.next) {
+            float dx = x - n.getFloat("x"), dy = y - n.getFloat("y");
+            if (dx * dx + dy * dy < 22 * 22) return true;
+        }
+        return false;
+    }
+
+    boolean canMove(float x, float y) {
+        return walkAt(x, y) && walkAt(x - 8, y) && walkAt(x + 8, y) && !npcBlocks(x, y);
+    }
+
+    void storyUpdate(float dt) {
+        if (stFade > 0) stFade -= dt;
+        if (dlgOn) { dlgTime += dt; return; }
+        if (stMenuOpen || stMapDef == null) return;
+        float dx = 0, dy = 0;
+        for (int i = 0; i < 5; i++) {
+            if (!Gdx.input.isTouched(i)) continue;
+            tp2.set(Gdx.input.getX(i), Gdx.input.getY(i));
+            vp.unproject(tp2);
+            if (stUp.contains(tp2)) dy -= 1;
+            if (stDown.contains(tp2)) dy += 1;
+            if (stLeft.contains(tp2)) dx -= 1;
+            if (stRight.contains(tp2)) dx += 1;
+        }
+        stMoving = dx != 0 || dy != 0;
+        if (!stMoving) return;
+        if (dx != 0 && Math.abs(dx) >= Math.abs(dy)) stDir = dx < 0 ? 2 : 3;
+        else stDir = dy < 0 ? 1 : 0;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        dx /= len; dy /= len;
+        float step = 150f * dt;
+        float nx = stX + dx * step, ny = stY + dy * step;
+        if (canMove(nx, stY)) stX = nx;
+        if (canMove(stX, ny)) stY = ny;
+        stAnim += dt;
+        checkMapEvents();
+    }
+
+    boolean inRect(JsonValue r) {
+        float rx = r.get(0).asFloat(), ry = r.get(1).asFloat(), rw = r.get(2).asFloat(), rh = r.get(3).asFloat();
+        return stX >= rx && stX <= rx + rw && stY >= ry && stY <= ry + rh;
+    }
+
+    void checkMapEvents() {
+        JsonValue portals = stMapDef.get("portals");
+        if (portals != null) {
+            for (JsonValue p = portals.child; p != null; p = p.next) {
+                if (!inRect(p.get("rect"))) continue;
+                String need = p.getString("need", "");
+                if (!need.isEmpty() && !flag(need)) {
+                    stX = stLastX; stY = stLastY;
+                    String deny = p.getString("deny", "");
+                    if (!deny.isEmpty()) startScene(deny);
+                    return;
+                }
+                warpTo(p.getString("to"), p.get("spawn").get(0).asFloat(), p.get("spawn").get(1).asFloat());
+                return;
+            }
+        }
+        checkTriggers();
+        stLastX = stX; stLastY = stY;
+    }
+
+    void checkTriggers() {
+        if (stMapDef == null) return;
+        JsonValue trg = stMapDef.get("triggers");
+        if (trg == null) return;
+        for (JsonValue t = trg.child; t != null; t = t.next) {
+            String sc = t.getString("scene");
+            String key = "trg_" + sc;
+            if (!flag(key) && inRect(t.get("rect"))) {
+                stFlags.add(key);
+                startScene(sc);
+                return;
+            }
+        }
+    }
+
+    void warpTo(String map, float x, float y) {
+        loadMap(map, x, y);
+        saveStory();
+        checkTriggers();
+    }
+
+    boolean canInteract() {
+        if (stMapDef == null) return false;
+        JsonValue npcs = stMapDef.get("npcs");
+        if (npcs != null) {
+            for (JsonValue n = npcs.child; n != null; n = n.next) {
+                if (Math.hypot(stX - n.getFloat("x"), stY - n.getFloat("y")) < 85) return true;
+            }
+        }
+        JsonValue pk = stMapDef.get("pickups");
+        if (pk != null) {
+            for (JsonValue p = pk.child; p != null; p = p.next) {
+                if (!flag("pk_" + p.getString("id")) && Math.hypot(stX - p.getFloat("x"), stY - p.getFloat("y")) < 70) return true;
+            }
+        }
+        return false;
+    }
+
+    void storyInteract() {
+        JsonValue npcs = stMapDef.get("npcs");
+        JsonValue best = null;
+        float bd = 85f;
+        if (npcs != null) {
+            for (JsonValue n = npcs.child; n != null; n = n.next) {
+                float d = (float) Math.hypot(stX - n.getFloat("x"), stY - n.getFloat("y"));
+                if (d < bd) { bd = d; best = n; }
+            }
+        }
+        if (best != null) { talkNpc(best); return; }
+        JsonValue pk = stMapDef.get("pickups");
+        if (pk != null) {
+            for (JsonValue p = pk.child; p != null; p = p.next) {
+                if (flag("pk_" + p.getString("id"))) continue;
+                if (Math.hypot(stX - p.getFloat("x"), stY - p.getFloat("y")) < 70) { collectPickup(p); return; }
+            }
+        }
+    }
+
+    void talkNpc(JsonValue npc) {
+        JsonValue talk = npc.get("talk");
+        if (talk == null) return;
+        for (JsonValue t = talk.child; t != null; t = t.next) {
+            if (cond(t.getString("if", ""))) { startScene(t.getString("scene")); return; }
+        }
+    }
+
+    boolean giveCard(String id) {
+        CardDef d = cardById(id);
+        lastCardName = d == null ? id : d.name;
+        if (stOwned.contains(id)) return false;
+        stOwned.add(id);
+        bannerText = "Kartu baru: " + lastCardName;
+        bannerUlt = false;
+        bannerMax = 1.8f;
+        bannerT = bannerMax;
+        return true;
+    }
+
+    void collectPickup(JsonValue p) {
+        boolean isNew = giveCard(p.getString("card"));
+        stFlags.add("pk_" + p.getString("id"));
+        startScene(isNew ? "pickup_found" : "pickup_dup");
+    }
+
+    // ---------- dialog ----------
+    void startScene(String id) {
+        JsonValue sc = storyRoot.get("scenes").get(id);
+        if (sc == null) return;
+        dlgLines = sc;
+        dlgIdx = 0;
+        dlgOn = true;
+        dlgChoices = null;
+        advanceDlg();
+    }
+
+    void advanceDlg() {
+        while (true) {
+            if (dlgLines == null || dlgIdx >= dlgLines.size) { endScene(); return; }
+            JsonValue it = dlgLines.get(dlgIdx);
+            dlgIdx++;
+            if (it.has("set")) { stFlags.add(it.getString("set")); continue; }
+            if (it.has("goto")) {
+                JsonValue sc = storyRoot.get("scenes").get(it.getString("goto"));
+                if (sc == null) { endScene(); return; }
+                dlgLines = sc;
+                dlgIdx = 0;
+                continue;
+            }
+            if (it.has("battle")) {
+                String bid = it.getString("battle");
+                dlgOn = false;
+                dlgLines = null;
+                startStoryBattle(bid);
+                return;
+            }
+            if (it.has("choice")) {
+                dlgWho = it.getString("who", "narr");
+                dlgText = fmt(it.getString("text", ""));
+                dlgChoices = it.get("choice");
+                dlgTime = 0;
+                return;
+            }
+            if (it.has("text")) {
+                dlgWho = it.getString("who", "narr");
+                dlgText = fmt(it.getString("text"));
+                dlgChoices = null;
+                dlgTime = 0;
+                return;
+            }
+            if (it.has("give")) { giveCard(it.getString("give")); continue; }
+            if (it.has("obj")) { stObjective = it.getString("obj"); continue; }
+        }
+    }
+
+    void pickChoice(int i) {
+        JsonValue c = dlgChoices.get(i);
+        if (c == null) return;
+        if (c.has("give")) giveCard(c.getString("give"));
+        if (c.has("set")) stFlags.add(c.getString("set"));
+        dlgChoices = null;
+        advanceDlg();
+    }
+
+    void endScene() {
+        dlgOn = false;
+        dlgLines = null;
+        dlgChoices = null;
+        saveStory();
+    }
+
+    Rectangle choiceRect(int i) {
+        int n = dlgChoices == null ? 0 : dlgChoices.size;
+        return new Rectangle(70, 335 + (n - 1 - i) * 88, 580, 76);
+    }
+
+    // ---------- duel cerita ----------
+    Array<CardDef> storyDeck() {
+        Array<CardDef> out = new Array<>();
+        for (String id : stOwned) {
+            CardDef d = cardById(id);
+            if (d != null) out.add(d);
+        }
+        String[] loan = { "goblin_scout", "squire", "iron_guard", "healer_monk", "shadow_fox" };
+        for (int i = 0; i < loan.length && out.size < 5; i++) {
+            CardDef d = cardById(loan[i]);
+            if (d != null && !out.contains(d, true)) out.add(d);
+        }
+        return out.size == 0 ? cards : out;
+    }
+
+    void startStoryBattle(String id) {
+        JsonValue bd = storyRoot.get("battles").get(id);
+        if (bd == null) { endScene(); return; }
+        Array<CardDef> opp = new Array<>();
+        for (JsonValue c = bd.get("deck").child; c != null; c = c.next) {
+            CardDef d = cardById(c.asString());
+            if (d != null) opp.add(d);
+        }
+        if (opp.size == 0) opp = cards;
+        storyBattle = id;
+        saveStory();
+        startDuel(false, 0, new Random().nextInt(1000000000), storyDeck(), opp, bd.getString("name", "Lawan"));
+        int hp = bd.getInt("hp", 0);
+        if (hp > 0) b.s[1].hp = hp;
+    }
+
+    void endStoryBattle(boolean win) {
+        JsonValue bd = storyRoot.get("battles").get(storyBattle);
+        String sc = bd == null ? "" : bd.getString(win ? "win" : "lose", "");
+        storyBattle = null;
+        online = false;
+        talks.clear();
+        parts.clear();
+        bannerT = 0;
+        mode = Mode.STORY;
+        if (!sc.isEmpty()) startScene(sc);
+        saveStory();
+    }
+
+    // ---------- input ----------
+    void onTapStory() {
+        if (stMenuOpen) { onTapStoryMenu(); return; }
+        if (dlgOn) {
+            if (dlgChoices != null) {
+                for (int i = 0; i < dlgChoices.size; i++) {
+                    if (choiceRect(i).contains(tap)) { pickChoice(i); return; }
+                }
+                return;
+            }
+            if (dlgTime * 40f < dlgText.length()) { dlgTime = dlgText.length() / 40f + 0.05f; return; }
+            advanceDlg();
+            return;
+        }
+        if (stBtnMenu.contains(tap)) { stMenuOpen = true; return; }
+        if (stBtnA.contains(tap)) storyInteract();
+    }
+
+    void onTapStoryMenu() {
+        if (stMenuBtn[0].contains(tap)) stMenuOpen = false;
+        else if (stMenuBtn[1].contains(tap)) askMcName(false);
+        else if (stMenuBtn[2].contains(tap)) { stMenuOpen = false; deckPage = 0; mode = Mode.COLLECT; }
+        else if (stMenuBtn[3].contains(tap)) { stMenuOpen = false; askMcName(true); }
+        else if (stMenuBtn[4].contains(tap)) { saveStory(); stMenuOpen = false; backToMenu(); }
+    }
+
+    // ---------- gambar ----------
+    void drawRobotAt(float sx, float sy, float u, Color c, float bob) {
+        Color metal = Color.valueOf("cfd8e3"), dark = Color.valueOf("5c6573");
+        float by = sy + (10 + bob) * u;
+        sr.setColor(0f, 0f, 0f, 0.25f);
+        sr.circle(sx, sy + 2 * u, 15 * u);
+        sr.setColor(dark);
+        sr.rect(sx - 11 * u, sy, 7 * u, 10 * u);
+        sr.rect(sx + 4 * u, sy, 7 * u, 10 * u);
+        sr.setColor(c.cpy().lerp(Color.BLACK, 0.35f));
+        sr.rect(sx - 15 * u, by, 30 * u, 26 * u);
+        sr.setColor(c);
+        sr.rect(sx - 11 * u, by + 5 * u, 22 * u, 6 * u);
+        sr.rect(sx - 19 * u, by + 8 * u, 4 * u, 14 * u);
+        sr.rect(sx + 15 * u, by + 8 * u, 4 * u, 14 * u);
+        sr.setColor(metal);
+        sr.rect(sx - 13 * u, by + 28 * u, 26 * u, 20 * u);
+        sr.rect(sx - 1 * u, by + 48 * u, 2 * u, 8 * u);
+        sr.setColor(c);
+        sr.rect(sx - 9 * u, by + 34 * u, 6 * u, 7 * u);
+        sr.rect(sx + 3 * u, by + 34 * u, 6 * u, 7 * u);
+        sr.circle(sx, by + 58 * u, 3 * u);
+    }
+
+    void drawNpcAt(JsonValue n, float camX, float camY) {
+        final float S = STORY_SCALE;
+        float nx = n.getFloat("x"), ny = n.getFloat("y");
+        float sx = 360 + (nx - camX) * S, sy = 640 - (ny - camY) * S;
+        if (sx < -200 || sx > W + 200 || sy < -250 || sy > H + 300) return;
+        float h = 68 * S;
+        String spr = n.getString("sprite", "");
+        if (!spr.isEmpty()) {
+            Texture t = loadTex(spr);
+            if (t != null) {
+                float w = h * t.getWidth() / t.getHeight();
+                addImg(t, sx - w / 2, sy, w, h);
+            }
+        } else {
+            final Color rc = Color.valueOf(n.getString("color", "4dabf7"));
+            final float fx = sx, fy = sy, bob = MathUtils.sin(time * 3f + nx) * 2f, sc = S;
+            overlay(new Runnable() {
+                public void run() { drawRobotAt(fx, fy, sc, rc, bob); }
+            });
+        }
+        label(n.getString("name", ""), sx - 150, sy + h + 26, 300, 17, TEXT, true, Align.center);
+    }
+
+    void drawStory() {
+        if (stMapTex == null) { label("Memuat...", 0, 640, W, 30, TEXT, false); return; }
+        final float S = STORY_SCALE;
+        final float camX = MathUtils.clamp(stX, 360 / S, stMapW - 360 / S);
+        final float camY = MathUtils.clamp(stY - 60, 640 / S, stMapH - 640 / S);
+        addImg(stMapTex, 360 - camX * S, 640 + (camY - stMapH) * S, stMapW * S, stMapH * S);
+
+        JsonValue npcs = stMapDef.get("npcs");
+        if (npcs != null) for (JsonValue n = npcs.child; n != null; n = n.next) if (n.getFloat("y") <= stY) drawNpcAt(n, camX, camY);
+
+        // pemain
+        String[] sp = { "st_spr_down.png", "st_spr_up.png", "st_spr_left.png", "st_spr_right.png" };
+        Texture pt = loadTex(stMoving || stDir != 0 ? sp[stDir] : "st_spr_idle.png");
+        if (pt != null) {
+            float h = 68 * S, w = h * pt.getWidth() / pt.getHeight();
+            float bob = stMoving ? Math.abs(MathUtils.sin(stAnim * 12f)) * 3f * S : 0f;
+            addImg(pt, 360 + (stX - camX) * S - w / 2, 640 - (stY - camY) * S + bob, w, h);
+        }
+        if (npcs != null) for (JsonValue n = npcs.child; n != null; n = n.next) if (n.getFloat("y") > stY) drawNpcAt(n, camX, camY);
+
+        // kartu yang bisa diambil
+        JsonValue pk = stMapDef.get("pickups");
+        if (pk != null) {
+            for (JsonValue p = pk.child; p != null; p = p.next) {
+                if (flag("pk_" + p.getString("id"))) continue;
+                final float px = 360 + (p.getFloat("x") - camX) * S;
+                final float py = 640 - (p.getFloat("y") - camY) * S + 14 * S;
+                final float pulse = 0.5f + 0.5f * MathUtils.sin(time * 4f + px);
+                overlay(new Runnable() {
+                    public void run() {
+                        sr.setColor(1f, 0.85f, 0.4f, 0.30f + 0.25f * pulse);
+                        sr.circle(px, py, 28 + 7 * pulse);
+                        diamond(px, py + 4 * pulse, 15, GOLD);
+                        sr.setColor(1f, 1f, 1f, 0.9f);
+                        sr.circle(px, py + 4 * pulse, 4);
+                    }
+                });
+            }
+        }
+
+        // HUD
+        final boolean can = canInteract();
+        overlay(new Runnable() {
+            public void run() {
+                sr.setColor(0f, 0f, 0f, 0.38f);
+                sr.rect(stUp.x, stUp.y, stUp.width, stUp.height);
+                sr.rect(stDown.x, stDown.y, stDown.width, stDown.height);
+                sr.rect(stLeft.x, stLeft.y, stLeft.width, stLeft.height);
+                sr.rect(stRight.x, stRight.y, stRight.width, stRight.height);
+                sr.setColor(1f, 1f, 1f, 0.75f);
+                sr.triangle(stUp.x + 45, stUp.y + 66, stUp.x + 20, stUp.y + 24, stUp.x + 70, stUp.y + 24);
+                sr.triangle(stDown.x + 45, stDown.y + 24, stDown.x + 20, stDown.y + 66, stDown.x + 70, stDown.y + 66);
+                sr.triangle(stLeft.x + 24, stLeft.y + 45, stLeft.x + 66, stLeft.y + 20, stLeft.x + 66, stLeft.y + 70);
+                sr.triangle(stRight.x + 66, stRight.y + 45, stRight.x + 24, stRight.y + 20, stRight.x + 24, stRight.y + 70);
+                if (can) sr.setColor(0.88f, 0.73f, 0.36f, 0.92f);
+                else sr.setColor(0f, 0f, 0f, 0.42f);
+                sr.circle(580, 190, 80);
+                box(stBtnMenu.x, stBtnMenu.y, stBtnMenu.width, stBtnMenu.height, 2, GOLD_DK, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
+                sr.setColor(0f, 0f, 0f, 0.55f);
+                sr.rect(14, 1196, 530, 64);
+                if (stFade > 0) {
+                    sr.setColor(0f, 0f, 0f, MathUtils.clamp(stFade / 0.5f, 0f, 1f));
+                    sr.rect(0, 0, W, H);
+                }
+            }
+        });
+        labelC("AKSI", 580, 190, 28, can ? INK : MUTED, true);
+        labelC("MENU", stBtnMenu.x + stBtnMenu.width / 2, stBtnMenu.y + stBtnMenu.height / 2, 22, TEXT, true);
+        String mapName = stMapDef.getString("name", "");
+        label("TUJUAN  |  " + mapName, 26, 1250, 500, 16, GOLD, true, Align.left);
+        label(stObjective.isEmpty() ? "-" : stObjective, 26, 1228, 510, 18, TEXT, false, Align.left);
+    }
+
+    void buildStoryOverlays() {
+        if (stMenuOpen) {
+            over3.add(new Runnable() {
+                public void run() {
+                    sr.setColor(0f, 0f, 0f, 0.7f);
+                    sr.rect(0, 0, W, H);
+                    box(110, 340, 500, 600, 3, GOLD, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
+                }
+            });
+            String[] names = { "LANJUT", "GANTI NAMA MC", "KOLEKSI KARTU", "ULANG CERITA", "SIMPAN & KELUAR" };
+            for (int i = 0; i < stMenuBtn.length; i++) {
+                final Rectangle r = stMenuBtn[i];
+                over2.add(new Runnable() {
+                    public void run() {
+                        box(r.x, r.y, r.width, r.height, 3, GOLD_DK, Color.valueOf("3a2a66"), Color.valueOf("150e2c"));
+                    }
+                });
+            }
+            curLayer = 1;
+            label("MENU STORY", 0, 925, W, 40, GOLD, true);
+            for (int i = 0; i < stMenuBtn.length; i++) {
+                Rectangle r = stMenuBtn[i];
+                labelC(names[i], r.x + r.width / 2, r.y + r.height / 2, 26, TEXT, true);
+            }
+            curLayer = 0;
+            return;
+        }
+        if (!dlgOn) return;
+        JsonValue spk = storyRoot.get("speakers").get(dlgWho);
+        String name = spk == null ? "" : fmt(spk.getString("name", ""));
+        String robot = spk == null ? "" : spk.getString("robot", "");
+        String portrait = spk == null ? "" : spk.getString("portrait", "");
+        over3.add(new Runnable() {
+            public void run() {
+                box(16, 40, 688, 270, 3, GOLD, Color.valueOf("231a3d"), Color.valueOf("0a0716"));
+            }
+        });
+        boolean hasArt = false;
+        if (!portrait.isEmpty()) {
+            Texture t = loadTex(portrait);
+            if (t != null) {
+                float h = 430f, w = h * t.getWidth() / t.getHeight();
+                if (w > 270f) { w = 270f; h = w * t.getHeight() / t.getWidth(); }
+                Im im = new Im();
+                im.t = t; im.x = 24; im.y = 110; im.w = w; im.h = h;
+                imgs2.add(im);
+                hasArt = true;
+            }
+        } else if (!robot.isEmpty()) {
+            final Color rc = Color.valueOf(robot);
+            over2.add(new Runnable() {
+                public void run() { drawRobotAt(150, 120, 4.2f, rc, MathUtils.sin(time * 3f) * 3f); }
+            });
+            hasArt = true;
+        }
+        if (dlgChoices != null) {
+            for (int i = 0; i < dlgChoices.size; i++) {
+                final Rectangle r = choiceRect(i);
+                over2.add(new Runnable() {
+                    public void run() {
+                        box(r.x, r.y, r.width, r.height, 3, GOLD, Color.valueOf("3a2a66"), Color.valueOf("150e2c"));
+                    }
+                });
+            }
+        }
+        float tx = hasArt ? 310 : 40, tw = hasArt ? 380 : 640;
+        curLayer = 1;
+        if (!name.isEmpty()) label(name, tx, 288, tw, 30, GOLD, true, Align.left);
+        int shown = Math.min(dlgText.length(), (int) (dlgTime * 40f));
+        label(dlgText.substring(0, shown), tx, 242, tw, 26, TEXT, false, Align.left);
+        if (dlgChoices == null && shown >= dlgText.length()) label("Ketuk untuk lanjut", tx, 70, tw, 17, MUTED, false, Align.right);
+        if (dlgChoices != null) {
+            for (int i = 0; i < dlgChoices.size; i++) {
+                Rectangle r = choiceRect(i);
+                label(fmt(dlgChoices.get(i).getString("text", "")), r.x + 20, r.y + r.height - 14, r.width - 40, 22, TEXT, false, Align.left);
+            }
+        }
+        curLayer = 0;
+    }
+
+    // ---------- koleksi kartu ----------
+    void drawCollect() {
+        label("KOLEKSI KARTU", 0, 1262, W, 52, GOLD, true);
+        int own = 0;
+        for (int i = 0; i < cards.size; i++) if (stOwned.contains(cards.get(i).id)) own++;
+        label(own + " / " + cards.size + " kartu terkumpul", 0, 1196, W, 22, TEXT, false);
+        int pages = (cards.size + DECK_PER_PAGE - 1) / DECK_PER_PAGE;
+        for (int k = 0; k < DECK_PER_PAGE; k++) {
+            int idx = deckPage * DECK_PER_PAGE + k;
+            if (idx >= cards.size) break;
+            final CardDef d = cards.get(idx);
+            boolean has = stOwned.contains(d.id);
+            final float cx = 24 + (k % 4) * 170, cy = 1130 - (k / 4 + 1) * 160 + 6;
+            sr.setColor(has ? frameColor(d) : Color.valueOf("3a3f4b"));
+            sr.rect(cx - 1, cy - 1, 158, 152);
+            grad(cx, cy, 156, 150, CARD_TOP, CARD_BOT);
+            Texture t = has ? art(d) : null;
+            if (t != null) addImg(t, cx + 6, cy + 58, 144, 88);
+            else grad(cx + 6, cy + 58, 144, 88, has ? effColor(d) : Color.valueOf("23262e"), CARD_BOT);
+            if (has) {
+                label(d.name, cx + 4, cy + 54, 148, 15, TEXT, true);
+                label("C" + d.cost + "   A" + d.attack + "   H" + d.hp, cx + 4, cy + 30, 148, 15, MUTED, false);
+            } else {
+                labelC("?", cx + 78, cy + 102, 44, MUTED, true);
+                label("Belum ditemukan", cx + 4, cy + 40, 148, 15, MUTED, false);
+            }
+        }
+        if (pages > 1) {
+            button(btnDeckPrev, "<", Color.valueOf("475569"), 26);
+            button(btnDeckNext, ">", Color.valueOf("475569"), 26);
+            labelC((deckPage + 1) + "/" + pages, 640, 110, 20, MUTED, false);
+        }
+        button(btnMenu, "KEMBALI", Color.valueOf("475569"), 20);
+    }
+
+    void onTapCollect() {
+        if (btnMenu.contains(tap)) { mode = Mode.STORY; return; }
+        int pages = (cards.size + DECK_PER_PAGE - 1) / DECK_PER_PAGE;
+        if (pages > 1 && btnDeckPrev.contains(tap)) deckPage = (deckPage + pages - 1) % pages;
+        else if (pages > 1 && btnDeckNext.contains(tap)) deckPage = (deckPage + 1) % pages;
+    }
+
     // ---------- input ----------
     void backToMenu() {
         mode = Mode.MENU;
@@ -2285,6 +2986,9 @@ public class VexorixGame extends ApplicationAdapter {
         pHost = false;
         pCode = "";
         myKey = null;
+        dlgOn = false;
+        stMenuOpen = false;
+        storyBattle = null;
     }
 
     void inspect(CardDef d, int atk, int hp, String note) {
@@ -2293,7 +2997,8 @@ public class VexorixGame extends ApplicationAdapter {
 
     void onTap() {
         if (mode == Mode.MENU) {
-            if (btnAi.contains(tap)) startDuel(false, 0, new Random().nextInt(1000000000), myDeck(), cards, "Bot Vexorix");
+            if (btnStory.contains(tap)) openStory();
+            else if (btnAi.contains(tap)) startDuel(false, 0, new Random().nextInt(1000000000), myDeck(), cards, "Bot Vexorix");
             else if (btnCreate.contains(tap)) createRoom();
             else if (btnJoin.contains(tap)) askCode();
             else if (btnTut.contains(tap)) startTutorial();
@@ -2302,14 +3007,16 @@ public class VexorixGame extends ApplicationAdapter {
             else if (btnProfile.contains(tap)) mode = Mode.PROFILE;
             return;
         }
+        if (mode == Mode.STORY) { onTapStory(); return; }
+        if (mode == Mode.COLLECT) { onTapCollect(); return; }
         if (mode == Mode.DECK) { onTapDeck(); return; }
         if (mode == Mode.PROFILE) { onTapProfile(); return; }
         if (mode == Mode.PSETUP) { onTapPSetup(); return; }
         if (mode == Mode.PLOBBY) { onTapPLobby(); return; }
         if (mode == Mode.PGAME) { onTapPGame(); return; }
-        if (btnMenu.contains(tap)) { backToMenu(); return; }
+        if (btnMenu.contains(tap)) { if (storyBattle != null) endStoryBattle(false); else backToMenu(); return; }
         if (mode != Mode.GAME) return;
-        if (b.winner >= 0) { backToMenu(); return; }
+        if (b.winner >= 0) { if (storyBattle != null) endStoryBattle(b.winner == me); else backToMenu(); return; }
         if (tutorial && tutTap()) return;
 
         boolean myTurn = b.turn == me;
